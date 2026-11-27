@@ -641,32 +641,35 @@ describe("a database an earlier release wrote", () => {
     );
   }
 
-  // The columns a later migration fills with random values, which a test
-  // cannot know: the instance's id and each browser session's, which
-  // audit-schema.test.ts checks.
-  const randomColumns: Readonly<Record<string, readonly string[]>> = {
-    instance: ["uid"],
+  // The columns a later migration adds to a table these databases already
+  // hold, which a test leaves out: those it fills with random values, which a
+  // test cannot know, the instance's id and each browser session's, which
+  // audit-schema.test.ts checks; and those notifications add empty, the push
+  // key and the notified mark, which notifications-schema.test.ts checks.
+  const laterColumns: Readonly<Record<string, readonly string[]>> = {
+    instance: ["uid", "vapid_private_key"],
     browser_sessions: ["id"],
+    thread_marks: ["notified_seq"],
   };
 
   // earlier keeps the tables of rows that a database had before it was opened
-  // at HEAD, leaving out the random columns.
+  // at HEAD, leaving out the columns later migrations add.
   function earlier(
     rows: Record<string, string[]>,
     before: Record<string, string[]>,
   ): Record<string, string[]> {
     return Object.fromEntries(
       Object.keys(before).map((name) => {
-        const random = randomColumns[name] ?? [];
+        const later = laterColumns[name] ?? [];
         return [
           name,
           (rows[name] ?? []).map((row) =>
-            random.length === 0
+            later.length === 0
               ? row
               : JSON.stringify(
                   Object.fromEntries(
                     Object.entries(JSON.parse(row) as Record<string, unknown>).filter(
-                      ([column]) => !random.includes(column),
+                      ([column]) => !later.includes(column),
                     ),
                   ),
                 ),
@@ -848,7 +851,7 @@ describe("a database an earlier release wrote", () => {
     }
   });
 
-  it("opens with every earlier row intact, and no files, API keys, message links, audit events, or saved views", () => {
+  it("opens with every earlier row intact, no files, API keys, message links, or audit events, and the starting saved view", () => {
     const file = path.join(root, "agention.db");
     const before = withRaw(file, (connection) => {
       connection.exec(`PRAGMA application_id = ${applicationId}`);
@@ -891,6 +894,7 @@ describe("a database an earlier release wrote", () => {
           "audit_events",
           "audit_sinks",
           "saved_views",
+          "push_subscriptions",
         ].sort(),
       );
       expect(earlier(after, before)).toEqual(before);
@@ -902,8 +906,11 @@ describe("a database an earlier release wrote", () => {
         after.message_links,
         after.audit_events,
         after.audit_sinks,
-        after.saved_views,
+        after.push_subscriptions,
       ]).toEqual([[], [], [], [], [], [], [], []]);
+      expect(after.saved_views?.map((row) => (JSON.parse(row) as { name: string }).name)).toEqual([
+        "Blocking asks",
+      ]);
     } finally {
       database.close();
     }

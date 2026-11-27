@@ -7,6 +7,7 @@ export * from "./errors.ts";
 export * from "./files.ts";
 export * from "./groups-and-tags.ts";
 export * from "./names.ts";
+export * from "./notifications.ts";
 export * from "./origin.ts";
 export * from "./passkeys.ts";
 export * from "./references.ts";

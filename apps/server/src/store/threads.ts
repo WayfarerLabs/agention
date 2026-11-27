@@ -32,7 +32,7 @@ import { insertLinks, type MessageLinks, threadLinks } from "./code-links.ts";
 import { findOperator, resolveSession, sessionActorId } from "./directory.ts";
 import { writeDigest } from "./digest.ts";
 import { statusOnWrite } from "./sessions.ts";
-import type { Store } from "./store.ts";
+import type { AgentMessage, Store } from "./store.ts";
 import { marksOf, partyCursors, readMessages, readThread } from "./thread-reads.ts";
 
 // Store operations take inputs their schema has already parsed, so bounds and
@@ -162,12 +162,15 @@ interface Parts extends MessageLinks {
 }
 
 // raiseReadMark moves an actor's read cursor on a thread forward to through;
-// it never moves back.
+// it never moves back. Reading through the message that last notified the
+// operator clears its mark, so the thread's next agent message notifies
+// again, even once it is marked unread; only the operator's marks hold one.
 export function raiseReadMark(db: Database, actor: number, threadId: number, through: number) {
   db.prepare(
     `INSERT INTO thread_marks (actor_id, thread_id, read_seq) VALUES (?, ?, ?)
      ON CONFLICT (actor_id, thread_id) DO UPDATE
-       SET read_seq = max(read_seq, excluded.read_seq)`,
+       SET read_seq = max(read_seq, excluded.read_seq),
+         notified_seq = IIF(notified_seq <= max(read_seq, excluded.read_seq), NULL, notified_seq)`,
   ).run(actor, threadId, through);
 }
 
@@ -181,6 +184,25 @@ function keepArchived(db: Database, actor: number, threadId: number, seq: number
      WHERE actor_id = :actor AND thread_id = :thread AND archived_seq > 0
        AND archived_seq = :seq - 1`,
   ).run({ seq, actor, thread: threadId });
+}
+
+// What a write's transaction did: appended a message to a thread, or found
+// the request already written and appended nothing, answering its first
+// result.
+type Written = { sessionId: number; result: WriteResult } & (
+  { appended: false } | { appended: true; threadId: number }
+);
+
+// afterWrite runs once a write that appended a message has committed: it
+// wakes the session's long polls and, for an agent's message, the check of
+// whether its thread now notifies the operator. A replay appended nothing,
+// and the operator's own writes, through a browser or an API key, never
+// notify.
+function afterWrite(store: Store, identity: Identity, sessionId: number, message: AgentMessage) {
+  store.notifier.notify(sessionId);
+  if (identity.credential.kind === "registration") {
+    store.afterAgentMessage(message);
+  }
 }
 
 // appendMessage writes a message at the thread's next sequence and the
@@ -532,7 +554,7 @@ function addThread(
   const { db } = store;
   const { request_id: requestId, title, state, outcome: stoppedWith, note, ...parts } = input;
   const report = { state, outcome: stoppedWith, note };
-  const outcome = db.transaction(() => {
+  const outcome = db.transaction((): Written => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const digest = writeDigest(
@@ -576,10 +598,10 @@ function addThread(
       thread,
       message: messageEntry(thread, 1, parts, asked, attachments, status),
     });
-    return { sessionId, appended: true, result: { number, seq: 1 } };
+    return { sessionId, threadId: id, appended: true, result: { number, seq: 1 } };
   });
   if (outcome.appended) {
-    store.notifier.notify(outcome.sessionId);
+    afterWrite(store, identity, outcome.sessionId, { threadId: outcome.threadId, seq: 1 });
   }
   return outcome.result;
 }
@@ -644,7 +666,7 @@ export function sendMessage(
     ...parts
   } = input;
   const report = { state, outcome: stoppedWith, note };
-  const outcome = db.transaction(() => {
+  const outcome = db.transaction((): Written => {
     const now = store.clock();
     const sessionId = authorizeSession(db, identity, "threads:write", target, now);
     const thread = requireThread(db, sessionId, target.thread);
@@ -714,10 +736,18 @@ export function sendMessage(
       thread: ref,
       message: messageEntry(ref, seq, parts, asked, attachments, status),
     });
-    return { sessionId, appended: true, result: { number: thread.number, seq } };
+    return {
+      sessionId,
+      threadId: thread.id,
+      appended: true,
+      result: { number: thread.number, seq },
+    };
   });
   if (outcome.appended) {
-    store.notifier.notify(outcome.sessionId);
+    afterWrite(store, identity, outcome.sessionId, {
+      threadId: outcome.threadId,
+      seq: outcome.result.seq,
+    });
   }
   return outcome.result;
 }

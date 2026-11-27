@@ -1,4 +1,5 @@
 import { scopes } from "@wayfarerlabs/agention-api";
+import { createECDH, randomBytes } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { issuePasskeyLink } from "../auth/passkey-links.ts";
 import { agentOperations, registration } from "../http/agent-operations.ts";
@@ -622,7 +623,68 @@ const webRoutes: Record<string, WebDriver> = {
     const { key } = created.body as { key: { id: number } };
     return { call: () => browser.post(`/keys/${key.id}/revoke`), events: ["revokeApiKey"] };
   },
+  "/api/web/notifications/devices": async ({ browser }) => ({
+    call: () => browser.post("/notifications/devices", subscription()),
+    events: ["addPushDevice"],
+  }),
+  // A refresh under new keys changes the row; one that changes nothing
+  // records nothing.
+  "/api/web/notifications/devices/refresh": async ({ browser }) => {
+    await deviceOn(browser);
+    return {
+      call: () => browser.post("/notifications/devices/refresh", subscription()),
+      events: ["refreshPushDevice"],
+    };
+  },
+  "/api/web/notifications/devices/:id/remove": async ({ browser }) => {
+    const device = await deviceOn(browser);
+    return {
+      call: () => browser.post(`/notifications/devices/${device}/remove`),
+      events: ["removePushDevice"],
+    };
+  },
+  "/api/web/notifications/views": async ({ browser }) => {
+    const view = await plainView(browser);
+    return {
+      call: () => browser.post("/notifications/views", { view }),
+      events: ["notifyView"],
+    };
+  },
+  "/api/web/notifications/views/:id/remove": async ({ browser }) => {
+    const view = await plainView(browser);
+    expect((await browser.post("/notifications/views", { view })).status).toBe(200);
+    return {
+      call: () => browser.post(`/notifications/views/${view}/remove`),
+      events: ["stopNotifying"],
+    };
+  },
 };
+
+// A push subscription as a browser gives it, to a known push service, under
+// new keys each time.
+function subscription(endpoint = "https://fcm.googleapis.com/fcm/send/device-1") {
+  const ecdh = createECDH("prime256v1");
+  ecdh.generateKeys();
+  return {
+    endpoint,
+    keys: {
+      p256dh: ecdh.getPublicKey().toString("base64url"),
+      auth: randomBytes(16).toString("base64url"),
+    },
+    label: "Chrome on Android",
+  };
+}
+
+async function deviceOn(browser: TestBrowser): Promise<number> {
+  const added = await browser.post("/notifications/devices", subscription());
+  expect(added.status).toBe(200);
+  return (added.body as { device: { id: number } }).device.id;
+}
+
+async function plainView(browser: TestBrowser): Promise<number> {
+  const created = await browser.post("/saved-views", { name: "Plain", view: {} });
+  return (created.body as { id: number }).id;
+}
 
 describe("every web-only write", () => {
   const harness = new Harness();

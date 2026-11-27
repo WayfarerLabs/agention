@@ -25,13 +25,23 @@ export class AuditWake {
   }
 }
 
+// An agent's message, once its write has committed: its thread and its
+// sequence.
+export interface AgentMessage {
+  threadId: number;
+  seq: number;
+}
+
 // Store is what every store operation runs against: the database, the clock
 // that stamps what it writes, the notifier that wakes long polls, the
 // operator's waits across every session each credential holds, how long a
 // session goes unseen before it reads as quiet, the ids of the uploads this
-// process is receiving, which the sweep leaves alone, and the wake of the
-// audit log's dispatcher. Only agention serve takes uploads, and one server
-// serves a database, so the set is the process's own, as the waits are.
+// process is receiving, which the sweep leaves alone, the wake of the audit
+// log's dispatcher, and what runs after an agent's message commits, which
+// agention serve sets to check whether it notifies and send it; elsewhere it
+// does nothing, so the store itself does no network work. Only agention serve
+// takes uploads, and one server serves a database, so the set is the
+// process's own, as the waits are.
 export interface Store {
   readonly db: Database;
   readonly clock: () => number;
@@ -40,11 +50,16 @@ export interface Store {
   readonly quietAfter: number;
   readonly uploadsInFlight: Set<number>;
   readonly auditWake: AuditWake;
+  readonly afterAgentMessage: (message: AgentMessage) => void;
 }
 
 export function createStore(
   db: Database,
-  options: { clock?: () => number; quietAfter?: number } = {},
+  options: {
+    clock?: () => number;
+    quietAfter?: number;
+    afterAgentMessage?: (message: AgentMessage) => void;
+  } = {},
 ): Store {
   return {
     db,
@@ -54,6 +69,7 @@ export function createStore(
     quietAfter: options.quietAfter ?? defaultQuietAfter,
     uploadsInFlight: new Set(),
     auditWake: new AuditWake(),
+    afterAgentMessage: options.afterAgentMessage ?? (() => {}),
   };
 }
 

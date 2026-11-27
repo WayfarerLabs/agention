@@ -123,13 +123,17 @@ export function liveSessionsOf(
 }
 
 // signOut ends the session a cookie names, the identity's, if it exists,
-// recording that the operator signed out of the service.
+// recording that the operator signed out of the service, and ends the
+// notifications of the device the session registered or last refreshed, as
+// signing that device out does. A new sign-in on the same browser closes the
+// old session without this, leaving its device for the next refresh to move.
 export function signOut(store: Store, identity: Identity, cookie: string | undefined): void {
   const { db } = store;
   const closed = db.transaction(() => {
     const now = store.clock();
     const ended = closeBrowserSession(db, cookie, now);
     if (ended !== undefined) {
+      db.prepare("DELETE FROM push_subscriptions WHERE session_id = ?").run(ended);
       recordAudit(store, now, { kind: "identity", identity }, "signOut", {});
     }
     return ended !== undefined;
@@ -192,6 +196,8 @@ export function resumeBrowserSession(
 export const recentSignIn = 10 * 60 * 1000;
 
 export interface SignedInSession {
+  // The session's id, which names it without its secret.
+  id: string;
   personId: number;
   passkeyId: number;
   recent: boolean;
@@ -202,17 +208,18 @@ export interface SignedInSession {
 export function signedInSession(db: Database, identity: Identity, now: number): SignedInSession {
   checkCredential(db, identity, now);
   const { credential } = identity;
-  const row =
-    credential.kind === "browser_session"
-      ? (db
-          .prepare("SELECT person_id, passkey_id, created_at FROM browser_sessions WHERE hash = ?")
-          .get(credential.hash) as
-          { person_id: number; passkey_id: number; created_at: number } | undefined)
-      : undefined;
+  if (credential.kind !== "browser_session") {
+    throw notFound();
+  }
+  const row = db
+    .prepare("SELECT person_id, passkey_id, created_at FROM browser_sessions WHERE hash = ?")
+    .get(credential.hash) as
+    { person_id: number; passkey_id: number; created_at: number } | undefined;
   if (row === undefined) {
     throw notFound();
   }
   return {
+    id: credential.id,
     personId: row.person_id,
     passkeyId: row.passkey_id,
     recent: now - row.created_at < recentSignIn,

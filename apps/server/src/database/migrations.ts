@@ -1,3 +1,5 @@
+// cspell:ignore unixepoch
+
 // The SQLite application id, `AGN1` in ASCII, which marks a database file as
 // Agention's in its header.
 export const applicationId = 0x41474e31;
@@ -816,5 +818,75 @@ export const migrations: readonly string[] = [
     view TEXT NOT NULL CHECK (json_valid(view) AND json_type(view) = 'object'),
     created_at INTEGER NOT NULL
   ) STRICT;
+  `,
+  `
+  -- Whether a saved view notifies the operator: an agent's message notifies
+  -- when its thread then matches the list of any view that does, by its
+  -- filters alone. It follows the view: a rename keeps it, a replaced list is
+  -- what the next check matches, and removing the view removes it. No view
+  -- that notifies has search, overdue, or the agent's reading on, which the
+  -- store keeps so. Only the web UI's notification routes read or write it; no
+  -- saved views operation selects it.
+  ALTER TABLE saved_views ADD COLUMN notifies INTEGER NOT NULL DEFAULT 0
+    CHECK (notifies IN (0, 1));
+
+  -- The starting view, Blocking asks, which notifies: added once, numbered
+  -- past a name a view already has, ignoring the case of ASCII letters as the
+  -- name's uniqueness does, and not added while 200 views, the most there can
+  -- be, exist. Its list is the impact filter alone, every part stored as saved
+  -- views store one.
+  INSERT INTO saved_views (name, view, created_at, notifies)
+  SELECT name,
+    '{"impact":"blocking","overdue":false,"unread":false,"include_archived":false,"sort":"priority","reverse":false}',
+    unixepoch() * 1000, 1
+  FROM (
+    WITH RECURSIVE n (i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200)
+    SELECT IIF(i = 1, 'Blocking asks', 'Blocking asks ' || i) AS name, i FROM n
+  )
+  WHERE name COLLATE NOCASE NOT IN (SELECT name FROM saved_views)
+    AND (SELECT count(*) FROM saved_views) < 200
+  ORDER BY i
+  LIMIT 1;
+
+  -- The devices the operator turned notifications on for: each browser push
+  -- subscription, by the endpoint its push service issued, with the keys that
+  -- encrypt to it, which are secrets the server holds. A subscription goes with
+  -- the passkey that signed its device in. session_id is the id of the browser
+  -- session that registered or last refreshed it, with no foreign key, so the
+  -- session expiring leaves it; signing that session out removes it. One
+  -- browser session holds at most one. label is what the device reported of
+  -- its browser and platform. accepted_at is when a push service last accepted
+  -- a send to it.
+  CREATE TABLE push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL UNIQUE CHECK (length(endpoint) BETWEEN 1 AND 2048),
+    p256dh BLOB NOT NULL CHECK (length(p256dh) = 65),
+    auth BLOB NOT NULL CHECK (length(auth) = 16),
+    passkey_id INTEGER NOT NULL REFERENCES passkeys (id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL UNIQUE
+      CHECK (length(session_id) = 32 AND session_id NOT GLOB '*[^0-9a-f]*'),
+    label TEXT NOT NULL CHECK (length(label) BETWEEN 1 AND 60),
+    created_at INTEGER NOT NULL,
+    accepted_at INTEGER
+  ) STRICT;
+  CREATE INDEX push_subscriptions_passkey ON push_subscriptions (passkey_id);
+
+  -- The message of the thread that last notified the operator, which the
+  -- server sets on the operator's own marks, never the operator. Raising the
+  -- read or archive mark to it or past it clears it, as does a send no device
+  -- accepted.
+  ALTER TABLE thread_marks ADD COLUMN notified_seq INTEGER CHECK (notified_seq >= 1);
+
+  -- The server's push signing key, the P-256 private scalar, made by the first
+  -- agention serve that finds none, after which it never changes: every
+  -- device's subscription is bound to its public half.
+  ALTER TABLE instance ADD COLUMN vapid_private_key BLOB
+    CHECK (length(vapid_private_key) = 32);
+  CREATE TRIGGER instance_vapid_key_fixed BEFORE UPDATE OF vapid_private_key ON instance
+  WHEN old.vapid_private_key IS NOT NULL
+    AND new.vapid_private_key IS NOT old.vapid_private_key
+  BEGIN
+    SELECT RAISE(ABORT, 'a server''s push key never changes');
+  END;
   `,
 ];

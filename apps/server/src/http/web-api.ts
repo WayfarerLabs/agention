@@ -1,8 +1,10 @@
 import {
   apiKeyCreateInput,
   newPasskeyInput,
+  notifyViewInput,
   passkeyLinkBeginInput,
   passkeyNameInput,
+  pushSubscriptionInput,
   type SessionState,
   signInFinishInput,
   voiceSettingsInput,
@@ -37,8 +39,16 @@ import {
   type Store,
   type VoiceEnvironment,
 } from "../store/index.ts";
+import {
+  notifyView,
+  readNotifications,
+  refreshDevice,
+  removeDevice,
+  stopNotifying,
+  turnOnDevice,
+} from "../store/notifications.ts";
 import type { TranscriptionProvider } from "../transcription/provider.ts";
-import { apiKeyOf, parseBody, passkeyOf } from "./input.ts";
+import { apiKeyOf, parseBody, passkeyOf, pushDeviceOf, savedViewOf } from "./input.ts";
 import { operatorOperations } from "./operator-operations.ts";
 import { addOperations, type IdentityEnv } from "./operations.ts";
 import { requestOrigin } from "./origin.ts";
@@ -74,6 +84,8 @@ export interface WebApiOptions {
   // The voice settings the server's environment supplies.
   voiceEnvironment: VoiceEnvironment;
   transcription: TranscriptionProvider;
+  // The server's push public key, base64url, which a browser subscribes with.
+  pushPublicKey: string;
   log: (message: string) => void;
   recordFailure: FailureRecorder;
   // Aborts when the server shuts down.
@@ -269,6 +281,34 @@ export function webApi(options: WebApiOptions): Hono<IdentityEnv> {
   api.post("/keys/:id/revoke", requireSession, (c) =>
     c.json(revokeApiKey(store, c.var.identity, apiKeyOf(c))),
   );
+
+  // Notifications: this browser's device and the others, and which saved
+  // views notify, which only a browser session manages or sees. Turning a
+  // device on and removing another need a recent sign-in, as API keys do;
+  // turning this device off, refreshing its subscription, and turning a
+  // view's notifying on or off need none.
+  api.get("/notifications", requireSession, (c) =>
+    c.json(readNotifications(store, c.var.identity, options.pushPublicKey)),
+  );
+  api.post("/notifications/devices", requireSession, async (c) =>
+    c.json(turnOnDevice(store, c.var.identity, await parseBody(c, pushSubscriptionInput))),
+  );
+  api.post("/notifications/devices/refresh", requireSession, async (c) =>
+    c.json(refreshDevice(store, c.var.identity, await parseBody(c, pushSubscriptionInput))),
+  );
+  api.post("/notifications/devices/:id/remove", requireSession, (c) => {
+    removeDevice(store, c.var.identity, pushDeviceOf(c));
+    return c.json({});
+  });
+  api.post("/notifications/views", requireSession, async (c) => {
+    const { view } = await parseBody(c, notifyViewInput);
+    notifyView(store, c.var.identity, view);
+    return c.json({});
+  });
+  api.post("/notifications/views/:id/remove", requireSession, (c) => {
+    stopNotifying(store, c.var.identity, savedViewOf(c));
+    return c.json({});
+  });
 
   // What waits on the operator, which the navigation's tabs count: the web
   // UI's own summary, which no API key reaches.

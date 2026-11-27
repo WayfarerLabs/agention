@@ -322,6 +322,13 @@ gate, which needs the network.
   deliberate update moves the server's by hand, under the same wait. Only the tests run it, on the
   schemas in their fixtures, so the residual `fast-uri` advisories below reach nothing through it
   either.
+- The server's tests decrypt what the server sends as Web Push with `http_ece`, Martin Thomson's
+  implementation of the encrypted content coding (RFC 8188) and Web Push's keying (RFC 8291), an
+  implementation independent of ours that derives its keys through its own HMAC rather than Node's
+  HKDF. It is pinned under the server's `devDependencies` at 1.2.1, the newest release and well past
+  the seven-day wait when it was added (2026-11-27), MIT-licensed, with no dependencies of its own,
+  a verified registry signature, no provenance attestation, and no known advisories. Only the tests
+  import it, so the server's bundle never includes it.
 - Every package a bundle includes ships with its license text, and the build fails for one whose
   notice would carry none. When a package's own files do not give the build what its notice needs,
   `suppliedNotices` in `packages/build/src/supplied-notices.ts` holds that text for its version,

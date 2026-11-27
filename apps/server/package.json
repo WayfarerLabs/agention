@@ -35,6 +35,7 @@
     "@wayfarerlabs/agention-private-files": "*",
     "ajv": "8.20.0",
     "hono": "4.13.19",
+    "http_ece": "1.2.1",
     "jose": "6.2.18"
   }
 }

@@ -33,6 +33,9 @@ let builder: Agent;
 beforeEach(() => {
   fixture = new Fixture();
   builder = fixture.registerAgent("builder", "main");
+  // These start from no views: the starting view notifications add, which
+  // notifications.test.ts covers, is removed.
+  fixture.db.prepare("DELETE FROM saved_views").run();
 });
 
 afterEach(() => {

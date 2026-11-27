@@ -33,6 +33,9 @@ const frozen = [
   "c24c677d50056cafeead80814df0accad3840019ec7612366ddf475313064eac",
   // 12, saved views.
   "78e043925788d4ab1a76dedca1123a2d05251e206eaf3e30b8532749bee4ac51",
+  // 13, notifications: saved views that notify, the starting view, devices,
+  // the notified mark and the push key.
+  "6134294d0cb9659e8681219e44023e5de4baf275e9eb32c7cc71e05d1d66c345",
 ];
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");

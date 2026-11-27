@@ -39,7 +39,9 @@ const scopeGrants: Record<Scope, string> = {
     "the group and tags of a session it approves: whoever holds the key can let any agent it " +
     "chooses in.",
   "saved-views:read": "Read the saved views, each with its thread list.",
-  "saved-views:write": "Also save, rename, replace, and remove saved views.",
+  "saved-views:write":
+    "Also save, rename, replace, and remove saved views, which changes what notifies when a " +
+    "view notifies.",
 };
 
 // The scopes each scope includes besides itself: a write includes its
