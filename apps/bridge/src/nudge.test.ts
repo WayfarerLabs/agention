@@ -18,7 +18,7 @@ import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
-import { notReady, nudgeTextLimit, nudgeTexts } from "./nudge.ts";
+import { markedBy, notReady, nudgeMarker, nudgeTextLimit, nudgeTexts } from "./nudge.ts";
 import type { ReporterTiming } from "./reporter.ts";
 import { serverJson, type TestBridge } from "./test-harness.ts";
 
@@ -119,15 +119,19 @@ const outcome = () => {
 const nudgeBodies = () => harness.nudgeRequests().map((seen) => seen.body);
 
 describe("the nudge's texts", () => {
-  it("are one line each, within the limit, with a warning of its own for every nudge", () => {
+  it("are one line each, within the limit, both marked with an id of each attempt's own", () => {
     const first = nudgeTexts();
     const second = nudgeTexts();
-    for (const text of [first.warning, first.message]) {
-      expect(text.length).toBeLessThanOrEqual(nudgeTextLimit);
-      expect(text).toMatch(/^[\x20-\x7e]+$/);
+    for (const texts of [first, second]) {
+      for (const text of [texts.warning, texts.message]) {
+        expect(text.length).toBeLessThanOrEqual(nudgeTextLimit);
+        expect(text).toMatch(/^[\x20-\x7e]+$/);
+        expect(text).toMatch(markedBy);
+        expect(text.startsWith(`${nudgeMarker} ${texts.id}`)).toBe(true);
+      }
     }
-    expect(second.warning).not.toBe(first.warning);
-    expect(second.message).toBe(first.message);
+    expect(second.id).not.toBe(first.id);
+    expect(second.message.replace(second.id, "")).toBe(first.message.replace(first.id, ""));
   });
 
   it("are texts the harness observer takes, which refuses any it cannot put in a pane", async () => {
