@@ -289,8 +289,9 @@ Delivery 2 bumps the agent API to version 9:
   bridge died, counts as sent. The check-in stamp moves whenever it is older than the latest nudge,
   so an agent that checks in while the nudge is under way counts as answering it. The server shows
   "not responding to the nudge" while a nudge it recorded has no check-in after it (N6), and applies
-  M6's nudge branches, which strand the thread once the quiet time passes. The report gains only
-  whether the session can be nudged.
+  M6's nudge branches, which strand the thread once the quiet time passes, or mark it ignored where
+  the agent checked in since without reading it (ruling 8), one ordered decision in the thread read
+  so a thread is never both. The report gains only whether the session can be nudged.
 
 On a due answer, the reporter calls `observer.nudge()` with the warning (fixed words and a token
 from a cryptographic random source), the message (fixed words), the claim as `begin`, and a signal
