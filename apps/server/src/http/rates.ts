@@ -56,7 +56,7 @@ export class RateLimitedError extends ApiError {
 
   constructor(retryAfterMs: number, what = "too many requests") {
     const retryAfter = Math.max(1, Math.ceil(retryAfterMs / 1000));
-    super("rate_limited", `${what}; retry in ${retryAfter} seconds`);
+    super("rate_limited", `${what}; retry in ${retryAfter}s`);
     this.retryAfter = retryAfter;
   }
 }
