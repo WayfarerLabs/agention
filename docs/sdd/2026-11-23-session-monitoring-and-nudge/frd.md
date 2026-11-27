@@ -22,12 +22,12 @@ And an agent at its prompt learns of what the operator writes only when somethin
 offers a plugin a way to wake an open session on every host, but a terminal does.
 
 Where an execution platform runs every session in a tmux pane of its own, as Agentworks does, the
-bridge runs inside that pane. So the bridge can **monitor** the session, reading its pane to say what condition it is in, and, where the
-operator turns it on, **nudge** an agent sitting at its prompt by typing one fixed message.
-Monitoring only reads, so it comes first and stands on its own; the nudge acts only on what
-monitoring finds, behind checks of its own. ADR 0001 holds that Agention never injects text into an
-agent's conversation or controls its harness; the nudge's one message, and the keys that place and
-submit it, become the only exception.
+bridge runs inside that pane. So the bridge can **monitor** the session, reading its pane to say
+what condition it is in, and, where the operator turns it on, **nudge** an agent sitting at its
+prompt by typing one fixed message. Monitoring only reads, so it comes first and stands on its own;
+the nudge acts only on what monitoring finds, behind checks of its own. ADR 0001 holds that Agention
+never injects text into an agent's conversation or controls its harness; the nudge's one message,
+and the keys that place and submit it, become the only exception.
 
 ## Who this is for
 
@@ -65,7 +65,9 @@ submit it, become the only exception.
 **M1. Connected.** While a session's bridge runs with an approved registration, the server knows it
 is connected, whatever the agent is doing, and stops showing it connected within about a minute of
 the bridge ending. This holds on every host, with or without a pane. The bridge also says whether it
-monitors a pane and whether the session can be nudged.
+monitors a pane and whether the session can be nudged, and, where it cannot monitor or nudge, why,
+as one of a fixed list of reasons (CF4) the operator sees on the session with since when, whenever
+it starts.
 
 **M2. Agent activity, apart from the bridge's.** The server knows when the agent last checked in,
 apart from when its bridge last called. What the operator sees today as a session's last seen
@@ -118,8 +120,9 @@ operator's latest message and nothing will bring it to the agent soon:
 - its session has no active credential or its bridge is not connected (M1);
 - its session cannot be nudged, and it has stopped or is quiet, where quiet now reads when the agent
   last checked in (M2), not when its bridge last called; or
-- its session can be nudged, and the latest nudge since that message was not sent (N6), or was sent
-  without the agent checking in within the quiet time, or none was sent within the quiet time.
+- its session can be nudged, and the latest nudge since that message failed or was stopped at the
+  terminal (N6), or was sent without the agent checking in within the quiet time, or none was sent
+  within the quiet time, as when nudge text left at the prompt holds it off (CF4).
 
 A session that can be nudged is not stranded merely for waiting at its prompt, which is what T1
 teaches it to do. A stranded thread says why, as today, with the session's condition (M3) where it
@@ -175,7 +178,10 @@ message. The messages, their authors and what was read reach the agent only thro
 tools, as today.
 
 **N3. Once until the agent checks in.** A session is nudged at most once until the agent next checks
-in, whether that nudge was sent or not (N6).
+in, whatever the nudge's outcome (N6). An attempt is a nudge once its own text reached the pane and
+stayed there: one that put nothing in the pane, one whose warning the bridge took back, and one
+whose warning the harness cleared with no one typing are not, and the bridge tries again while a
+nudge is due.
 
 **N4. Only at its prompt, and only when still.** The bridge nudges only when monitoring finds the
 session at its prompt, not stopped by a usage limit that has yet to reset, the host itself has the
@@ -185,19 +191,37 @@ host (such as tmux's copy mode). Anything else means it waits and tries again.
 
 **N5. Warn, clear, send, and the operator can stop it.** The warning sits at the prompt for a few
 seconds. If it is then not exactly as the bridge put it there, alone on the input line, the bridge
-abandons the nudge and removes nothing. Otherwise it removes the warning, checks the line is empty,
-puts the message there, checks it, and submits it; if that last check fails, it removes the message
-when it can still see it exactly as it put it there, and otherwise leaves it. Text reaches the pane
-only as pasted text. The only keys the bridge sends are the ones that remove its own text and the
-one that submits the message, never an ordinary character or Escape, and only once the pane shows
-the bridge's own text where the profile expects the input line.
+abandons the nudge and removes nothing. If it is, but the rest of the screen changed meanwhile, as
+when the harness starts a turn or redraws, the bridge takes the warning back and tries again later.
+Otherwise it removes the warning, checks the line is empty, puts the message there, checks it, and
+submits it; if that last check fails, it removes the message when it can still see it exactly as it
+put it there, and otherwise leaves it. Text reaches the pane only as pasted text. The only keys the
+bridge sends are the ones that remove its own text and the one that submits the message, never an
+ordinary character or Escape, and only once the pane shows the bridge's own text where the profile
+expects the input line.
 
 **N6. Watched, and the outcome reported.** After submitting, the bridge checks the host took the
-message: the line is clear and a turn starts. The bridge reports its latest nudge's time and whether
-it was **sent** or **not sent** (abandoned at any step), and logs why, without pane text (M8). The
-operator then sees a session **not responding to the nudge** when it was sent and the agent has not
-checked in since, beside **connected** (M1) and its activity (M2), so they can tell a session that
-is offline, one online but not checking in, and one that did not respond to a nudge (ruling 2).
+message: the line is clear and a turn starts. Each attempt ends in one of these, which the bridge
+reports with the attempt's id (N2) and logs, without pane text (M8):
+
+- **Deferred**: nothing reached the pane, or the bridge took its warning back (N5), or the warning
+  left the line with no one typing, the harness having moved on. Not a nudge (N3), so the bridge
+  tries again while one is due, and the operator sees nothing of it.
+- **Stopped at the terminal**: someone typed into or over the warning, or into the line before the
+  message went in. The operator sees it as the choice of whoever is at the terminal, not a failure.
+- **Failed**: the line would not clear, the message did not go in exactly, or the host did not take
+  it. The operator sees the nudge failed.
+- **Sent**: the host took the message.
+
+Nudge text that is not the attempt's own, left at the prompt by an earlier attempt or anyone else,
+is never removed. It holds the nudge off, and the operator sees why (CF4), so they can clear it; the
+nudge goes ahead once it is gone. Only a failed nudge and nudge text left at the prompt read as
+problems.
+
+The operator sees the latest nudge, with its time, id and outcome, and a session **not responding to
+the nudge** when it was sent and the agent has not checked in since, beside **connected** (M1) and
+its activity (M2), so they can tell a session that is offline, one online but not checking in, and
+one that did not respond to a nudge (ruling 2).
 
 ### Configuration
 
@@ -207,11 +231,11 @@ type; others may follow, such as a nudge through a host's SDK.
 
 **CF2. The pane is named, never guessed.** The bridge monitors a pane only where its configuration
 gives the tmux socket, as an option or environment variable. It never infers it from an inherited
-`TMUX` or from a known socket location. The socket is a path, named for tmux rather than for
-any platform, so other tmux setups, a named socket among them, need nothing more. The tmux server
-holds one pane, as Agentworks's sessions do (ruling 2); one with more is reported as unknown and
-never nudged, and the configuration leaves room for naming a pane later. Monitoring needs only this;
-the nudge needs this and CF1. The profile (M5) is one more setting, naming a harness's profile or a
+`TMUX` or from a known socket location. The socket is a path, named for tmux rather than for any
+platform, so other tmux setups, a named socket among them, need nothing more. The tmux server holds
+one pane, as Agentworks's sessions do (ruling 2); one with more is reported as unknown and never
+nudged, and the configuration leaves room for naming a pane later. Monitoring needs only this; the
+nudge needs this and CF1. The profile (M5) is one more setting, naming a harness's profile or a
 generic one.
 
 **CF3. The execution platform supplies it.** The plugins forward the environment variables of CF1
@@ -222,9 +246,14 @@ named for what they configure and never for a platform. Agentworks is the first 
 them through its templating; that change is Agentworks's, and this effort states what it needs and
 tests against it.
 
-**CF4. Misconfiguration is visible, never fatal.** A pane the bridge cannot reach, a profile or
-nudge type it does not know, or a nudge type without a socket, shows in the bridge's log and in the
-`register` answer (T1), and an unreachable pane also as unknown (M3); Agention's tools work as
+**CF4. Misconfiguration and trouble are visible, never fatal.** A pane the bridge cannot reach, more
+than one pane, a profile or nudge type it does not know, a nudge type without a socket, a generic
+profile, which never nudges, and nudge text left at the prompt (N6) each show to the operator on the
+session, as one of a fixed list of reasons the bridge cannot monitor or nudge, with since when (M1),
+and in the bridge's log; an unreachable pane also reads as unknown (M3). The bridge reports a reason
+whenever it arises, not only as it starts, so trouble that begins later shows as surely as a
+misconfiguration. Those found as the bridge starts also show in the `register` answer (T1). The
+agent is not told of trouble later: it is the operator's (ruling 9). Agention's tools work as
 without it.
 
 ### Telling the agent
@@ -234,7 +263,8 @@ says the agent will be nudged when its session can be nudged, and otherwise that
 when it checks, as today; a pending answer says nothing of the nudge. The usage skill says what each
 means: when nudged, an agent with nothing else to do reports `idle` and ends its turn, with no
 waiter of its own; on a nudge, it checks in and updates its status; otherwise it keeps checking as
-today. Nothing tells the agent later that a nudge failed: the operator sees it (N6, M6).
+today. Nothing tells the agent later that a nudge failed or that its session can no longer be
+nudged: the operator sees it (M1, N6, M6).
 
 ### Compatibility and cost
 
@@ -243,6 +273,9 @@ the release lines' rules (`docs/sdd/2026-11-22-separate-releases/frd.md` R2, C1 
 with monitoring against a server without it fails as that FRD's C3 requires. A session whose bridge
 predates monitoring keeps today's presence and stranded rule, every call it makes counting as a
 check-in, so an older plugin's threads are not stranded for want of a connection it cannot report.
+The release lines' split is a hard dependency (ruling 9): this effort's pull requests do not merge
+until the first releases on the split lines are out, so its changes ship by the split's rules and
+never in a combined release.
 
 **C2. Bounded cost.** While nothing changes, what this effort adds costs no model turns, at most one
 waiting request on the server for each host session, and conditions sent only when they change.
@@ -277,6 +310,8 @@ cases of C1 as the release lines require.
 - Terminals other than tmux, harnesses outside one, and tmux servers with more than one pane.
 - Nudging a session whose host has ended, or starting one.
 - The thin-proxy bridge and a direct MCP endpoint on the server (agention#16).
+- Names for the default session that no platform owns, beside `AGENTWORKS_AGENT` and
+  `AGENTWORKS_SESSION`, which predate this effort: a separate change (ruling 9).
 
 ## Operator rulings, 2026-11-23 onward
 
@@ -399,6 +434,40 @@ an account label, was dropped by ruling 4.
    (stranded by the nudge's outcome rather than by waiting at the prompt) lands in place on operator
    API v1, marked BREAKING CHANGE, they chose "Yes, mark it breaking". Taken: the force-push, M6's
    ignored status, and the nudge's breaking-change footer.
+9. (2026-11-27) Asked in Agention to accept this FRD, the operator chose "Changes": "I left a few
+   comments on the FRD", in review comments on pull request #120. On CF3: "So while Agentworks is
+   the primary target platform for this, we shouldn't assume it anywhere. Build for Agentworks but
+   make sure the overall interface supports a generalize execution platform." On CF4: "So does this
+   imply that the agent would only be notified of problems in the response to register? If so, I
+   think that's inadequate, right? Everything might be fine at time of registration and then break
+   later. the agent should be able to report that to their operator." On C1: "I agree but note that
+   the split releases aren't yet released. We should make that a hard dependency here." On N2: "I
+   think "unique to that nudge" implies "unique to each individual nudge attempt" but we might want
+   to make it more specific. For example, if a nudge is attempted on a harness and for some reason
+   the warning is delayed such that the first nudge attempt fails, a second nudge attempt should not
+   see the first nudge's warning as its own. In my mind, this comes down to the warning content have
+   two sequences designed for detection: 1. A general character sequence that is carried in all
+   warnings 2. A nudge attempt specific sequence that is unique to each nudge attempt (random,
+   autoinc, etc.) Both of these need to be such that the odds of them appearing in content outside
+   the nudge warning are effectively zero. Note that it might be cool to repeat the identifying info
+   (#2) in the final message that is actually submitted, too, for a bit of an audit trail as this
+   will show up in the harness transcripts." On N6: "I do want to make sure that we have room to
+   treat failed outcomes appropriately. There's a big difference between the following, for
+   example: 1. The harness pane content changes between writing the warning and checking it 2. The
+   warning content is not there or has been modified 3. The warning content is there but is from a
+   previous nudge attempt 4. ... #1, for example, will probably happen quite frequently. Maybe we
+   just say "running" there and we're mostly right (there are certainly going to be small harness
+   updates while stopped). Again, I just want to make sure this is fully thought through. A bunch of
+   false alarms is going to get really annoying really fast." Offered the lead's proposals, they
+   answered, on problems that start after `register`, "Operator only": "Yeah, good point. This isn't
+   really the agent's concern. Let's keep it reported through the server (API and FE)."; on the
+   nudge's outcomes, offered six (deferred, harness gone busy, stopped at the terminal, leftover
+   nudge text, not taken, sent), of which only leftover text and not taken alarm and only attempts
+   that put text in the pane count as the one nudge, "Adopt it (recommended)"; on what the release
+   lines' split holds back, "Hold the merge (recommended)"; and on neutral names for the default
+   session, "Separate PR (recommended)". Taken: CF3 for any execution platform, N2's marker and
+   attempt id, N3 and N6's outcomes, CF4 and M1's reasons on the session, and C1's hard dependency;
+   the default session's names are out of scope.
 
 ## Definition of done
 
@@ -408,7 +477,7 @@ Monitoring ships first and stands on its own; each delivery is done when its par
   - M1 to M10, the configuration and C1 and C2 are implemented, tested at their boundary, and
     documented in permanent docs.
   - Live on Claude Code and on Codex, on a bed shaped like an Agentworks session, one tmux server
-    holding one pane, with the configuration set by hand as Agentworks will set it (ruling 7): the
+    holding one pane, with the configuration set by hand as a platform sets it (ruling 7): the
     operator sees a session connected, its agent's activity, and its condition, including running,
     at its prompt and a permission dialog; a session approved while at its prompt starts reporting;
     and on Codex, of several bridges for one session, only one reports.
@@ -419,6 +488,10 @@ Monitoring ships first and stands on its own; each delivery is done when its par
   - N1 to N6 and T1 are implemented, tested at their boundary, and documented in permanent docs.
   - Live the same way: an agent at its prompt is nudged when the operator starts a thread with it
     from the web UI, checks in and updates its status; a nudge is refused at a permission dialog and
-    while someone types, and is abandoned when the operator types over its warning; and a session
-    whose nudge was not answered shows as not responding.
+    while someone types, and is stopped at the terminal when the operator types over its warning; a
+    change elsewhere on the screen while the warning stands defers the nudge without a failure;
+    nudge text left at the prompt holds the nudge off, shows why, and lets it go once cleared; a
+    submitted message carries the attempt's id into the harness's transcript; and a session whose
+    nudge was not answered shows as not responding.
+- No pull request of this effort merges before the first releases on the split release lines (C1).
 - The repository passes its documented checks in CI.
