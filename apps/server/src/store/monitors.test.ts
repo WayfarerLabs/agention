@@ -13,12 +13,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { archiveThread, markRead } from "./marks.ts";
 import { claimNudge, pollMonitor, recordNudgeOutcome, reportMonitor } from "./monitors.ts";
-import { connectedFor, seenStep } from "./presence.ts";
+import { connectedFor } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
 import { listSessions } from "./sessions.ts";
 import { createStore, defaultQuietAfter, type Store } from "./store.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
 import { countThreads, listThreads } from "./thread-lists.ts";
+
+// A minute, a step the tests leave between one event and the next.
+const minute = 60_000;
 
 let fixture: Fixture;
 let agent: Agent;
@@ -398,7 +401,7 @@ describe("the nudge", () => {
 
   it("is never due for a message written before the agent last checked in", async () => {
     written();
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     expect(await due()).toBe(false);
   });
@@ -427,7 +430,7 @@ describe("the nudge", () => {
     [
       "checks in",
       () => {
-        fixture.advance(seenStep);
+        fixture.advance(minute);
         fixture.seen(agent);
       },
     ],
@@ -683,7 +686,7 @@ describe("the nudge", () => {
     const stopped = latestId;
     const stoppedAt = new Date(fixture.now).toISOString();
     claim(first, "stopped");
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     written();
@@ -719,13 +722,13 @@ describe("the nudge", () => {
     claim(first);
     claim(first, "stopped");
     const settled = nudgeRow();
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     written();
     claim(first);
     const lost = latestId;
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     written();
@@ -761,7 +764,7 @@ describe("the nudge", () => {
     fixture.advance(3_000);
     claim(first, "sent");
     expect(lastNudge()).toMatchObject({ outcome: "sent", answered: true });
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     written();
@@ -821,7 +824,7 @@ describe("the nudge", () => {
 
 describe("stranded and ignored, for a session that can be nudged", () => {
   const canBeNudged = { ...running, condition: "at_prompt", nudge: true };
-  const quiet = defaultQuietAfter + seenStep + 1;
+  const quiet = defaultQuietAfter + 1;
 
   beforeEach(async () => {
     fixture.seen(agent);
@@ -873,10 +876,10 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("is ignored, once the quiet time passes after the message, where the agent checked in since without reading it", () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     // The agent checked in after the message, so no nudge is due for it.
-    fixture.advance(quiet - seenStep - 1);
+    fixture.advance(quiet - minute - 1);
     expect(standing()).toBe("neither");
     fixture.advance(1);
     expect(presence()?.quiet).toBe(false);
@@ -895,7 +898,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
 
   it("says the latest nudge is not the one a later thread waits on, as when nudge text left holds the next off", async () => {
     await claimed("failed");
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     fixture.startThread(agent);
@@ -922,11 +925,11 @@ describe("stranded and ignored, for a session that can be nudged", () => {
 
   it("stays stranded after a nudge not sent, though the agent checks in, until the quiet time passes after the message", async () => {
     await claimed("failed");
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     expect(presence()?.quiet).toBe(false);
     expect(standing()).toBe("stranded");
-    fixture.advance(quiet - seenStep - 1);
+    fixture.advance(quiet - minute - 1);
     expect(standing()).toBe("stranded");
     fixture.advance(1);
     expect(standing()).toBe("ignored");
@@ -966,7 +969,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("is stranded, not ignored, where the agent checked in after the message but not since a later nudge", async () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(1);
     fixture.startThread(agent);
@@ -979,7 +982,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("is stranded, not ignored, where the session has no active credential", () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(quiet);
     expect(standing()).toBe("ignored");
@@ -1004,7 +1007,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
     [
       "after the agent checked in since the message, with no nudge",
       () => {
-        fixture.advance(seenStep);
+        fixture.advance(minute);
         fixture.seen(agent);
       },
     ],
@@ -1046,7 +1049,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("is stranded, never ignored, where the agent passed a message over and a nudge due for a later one goes the quiet time unclaimed", async () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     followedUp();
     expect((await poll(first, { wait: "0" })).nudge).toBe(true);
@@ -1120,7 +1123,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("follows the rule of a session that cannot be nudged once its bridge says so, never ignored", () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     report(first, { ...canBeNudged, nudge: false });
     fixture.advance(quiet);
@@ -1131,7 +1134,7 @@ describe("stranded and ignored, for a session that can be nudged", () => {
   });
 
   it("is stranded while its bridge is not connected, whatever it last said", () => {
-    fixture.advance(seenStep);
+    fixture.advance(minute);
     fixture.seen(agent);
     fixture.advance(connectedFor + 1);
     const thread = listThreads(fixture.store, fixture.operator, threadsQuery.parse({})).threads[0];

@@ -8992,7 +8992,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",
@@ -9151,7 +9151,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",
@@ -9410,7 +9410,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",

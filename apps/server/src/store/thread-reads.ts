@@ -26,7 +26,7 @@ import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, latestClaimOf, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
+import { connectedFor, type PresenceRow, presenceOf } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -79,12 +79,11 @@ export interface ViewerAndCutoff {
 }
 
 // viewerAndCutoff gives the viewer and the cut-offs now. A session is quiet
-// once unseen for the server's threshold and the step its stamp may lag by,
-// so a session that keeps checking in never is.
+// once unseen for the server's threshold.
 export function viewerAndCutoff(store: Store, viewer: number, now: number): ViewerAndCutoff {
   return {
     viewer,
-    quiet_before: now - store.quietAfter - seenStep,
+    quiet_before: now - store.quietAfter,
     connected_from: now - connectedFor,
   };
 }
@@ -93,6 +92,16 @@ export function viewerAndCutoff(store: Store, viewer: number, now: number): View
 // or last seen before the quiet cut-off a ViewerAndCutoff binds.
 export function quietOf(sessions: string): string {
   return `(${sessions}.last_seen_at IS NULL OR ${sessions}.last_seen_at < :quiet_before)`;
+}
+
+// latestClaimOf says, for the sessions read as sessions, when their latest
+// nudge was claimed: the later of the claim under way and the latest nudge
+// that settled, either of which may be null, and null until a bridge first
+// claims one.
+function latestClaimOf(sessions: string): string {
+  const claimed = `${sessions}.nudge_claimed_at`;
+  const settled = `${sessions}.nudged_at`;
+  return `max(COALESCE(${claimed}, ${settled}), COALESCE(${settled}, ${claimed}))`;
 }
 
 // nudgeDueSince says, for the sessions read as sessions, when the earliest

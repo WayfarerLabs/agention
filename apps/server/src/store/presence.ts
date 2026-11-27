@@ -10,15 +10,11 @@ import {
 } from "@wayfarerlabs/agention-api";
 import type { Store } from "./store.ts";
 
-// A session's presence: when its agent last checked in, kept to the minute,
-// with the agent API version it checked in with, and when its bridge last
-// made a background request. The reads derive from them whether it is quiet,
-// whether it is connected and whether its threads are stranded, and describe
-// it to the operator, with its bridge's latest report, as presenceOf does.
-
-// The step last seen moves in: a check-in stamps it only once that moves it
-// this far, so a polling agent writes about once a minute.
-export const seenStep = 60_000;
+// A session's presence: when its agent last checked in, with the agent API
+// version it checked in with, and when its bridge last made a background
+// request. The reads derive from them whether it is quiet, whether it is
+// connected and whether its threads are stranded, and describe it to the
+// operator, with its bridge's latest report, as presenceOf does.
 
 // How long a background request keeps a session connected. A bridge makes
 // one at least every 25 seconds while it runs, so a session stops showing
@@ -26,52 +22,24 @@ export const seenStep = 60_000;
 export const connectedFor = 60_000;
 
 // markCheckedIn stamps the agent of the session a registration acts for as
-// checked in now, with the agent API version of its call, when that moves
-// its last check-in a minute or more, when its last check-in is after now,
-// so a clock stepped back never holds it still, when the version differs
-// from the last one's, so a session pinned to an older bridge is read by its
-// rule at once, or when its last check-in is before either of these: the
-// latest message someone other than the agent wrote in one of its threads,
-// and when its latest nudge was claimed, under way or settled
-// (latestClaimOf). So a call after a message always counts as checking in
-// since it, and a check-in
-// during a nudge, or in reply to one, always shows, at the cost of one stamp
-// more for each message and claim; an orphan a bridge left (settleOrphan)
-// needs no clause of its own, since its claim came after a message the
-// check-in was before. The latest message is found from the newest of the
-// session's messages back, by its log's index, past only the agent's own. A
-// stamp wakes no poll, though it can end a nudge being due: a claim checks
-// again that one is. The agent mount calls it on every call by an approved
-// key but its bridge's background ones, before the call's own work, in a
-// transaction of its own, so a call refused later still counts. A
-// registration that is not approved as it runs, pending or revoked since its
-// token was verified, stamps nothing.
+// checked in now, with the agent API version of its call, on every call, so
+// a check-in's order against each message and nudge is exact. A stamp wakes
+// no poll, though it can end a nudge being due: a claim checks again that
+// one is. The agent mount calls it on every call by an approved key but its
+// bridge's background ones, before the call's own work, in a transaction of
+// its own, so a call refused later still counts. A registration that is not
+// approved as it runs, pending or revoked since its token was verified,
+// stamps nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
   db.transaction(() => {
     db.prepare(
       `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
        WHERE id = (
-           SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
-         )
-         AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version OR last_seen_at < ${latestClaimOf("sessions")}
-           OR last_seen_at < (
-             SELECT m.created_at FROM messages m
-             WHERE m.session_id = sessions.id
-               AND m.actor_id IS NOT (SELECT a.id FROM actors a WHERE a.session_id = sessions.id)
-             ORDER BY m.session_pos DESC LIMIT 1
-           ))`,
-    ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
+         SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
+       )`,
+    ).run({ now: store.clock(), registration: registrationId, version });
   });
-}
-
-// latestClaimOf says, for the sessions read as sessions, when their latest
-// nudge was claimed: the claim under way, where there is one, which always
-// comes after the nudge settled before it, and otherwise the latest nudge;
-// null until a bridge first claims one.
-export function latestClaimOf(sessions: string): string {
-  return `COALESCE(${sessions}.nudge_claimed_at, ${sessions}.nudged_at)`;
 }
 
 // markBackground stamps the session a registration acts for as connected

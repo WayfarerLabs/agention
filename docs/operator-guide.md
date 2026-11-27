@@ -134,18 +134,18 @@ its own data directory and `--name`. Two can share a host, under different ports
 each other out.
 
 A session's agent checks in each time it calls Agention, and its session is seen then. One whose
-agent has not checked in within `--quiet-minutes`, plus the minute that may take to show, or never,
-is quiet: it has stopped, or is busy elsewhere. A session's bridge may also hold a background
-connection to the server, which is not the agent checking in; while it does, the session is
-**connected**, and it stops being so within a minute of the bridge ending. A bridge from before the
-background connection cannot report one, so a session whose agent last checked in through such a
-bridge, with no newer one connected, is never shown disconnected. A thread is **stranded** when its
-agent has not read your latest messages and nothing will bring it to them soon: its session is
-quiet, stopped, not connected or without an active credential, or, for a session its bridge can
-nudge, the nudge did not come or did not bring it within `--quiet-minutes`. It is **ignored**
-instead when the agent checked in at or after your earliest message it has not read, and its latest
-nudge, without reading it, and `--quiet-minutes` have passed with nothing more to bring it there:
-the agent was there and left it unread, which says the session is not doing what it should
+agent has not checked in within `--quiet-minutes`, or never, is quiet: it has stopped, or is busy
+elsewhere. A session's bridge may also hold a background connection to the server, which is not the
+agent checking in; while it does, the session is **connected**, and it stops being so within a
+minute of the bridge ending. A bridge from before the background connection cannot report one, so a
+session whose agent last checked in through such a bridge, with no newer one connected, is never
+shown disconnected. A thread is **stranded** when its agent has not read your latest messages and
+nothing will bring it to them soon: its session is quiet, stopped, not connected or without an
+active credential, or, for a session its bridge can nudge, the nudge did not come or did not bring
+it within `--quiet-minutes`. It is **ignored** instead when the agent checked in at or after your
+earliest message it has not read, and its latest nudge, without reading it, and `--quiet-minutes`
+have passed with nothing more to bring it there: the agent was there and left it unread, which says
+the session is not doing what it should
 ([Presence, quiet and stranded](architecture.md#presence-quiet-and-stranded) gives the full rule). A
 session that reports it stopped says how, as **completed**, **withdrawn** (you called it off) or
 **stalled** (it cannot go on), and stays stopped until it reports working or idle. An idle session

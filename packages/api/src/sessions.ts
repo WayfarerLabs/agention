@@ -11,8 +11,8 @@ import { singleLineText } from "./text.ts";
 // reads in its log.
 
 // A session's presence: when its agent was last seen checking in, calling
-// Agention through any route but its bridge's background ones, kept to the
-// minute and absent until it first does; whether it is quiet, not seen within
+// Agention through any route but its bridge's background ones, absent until
+// it first does; whether it is quiet, not seen within
 // the server's quiet threshold, or never; and whether its bridge is
 // connected, having made a background request within the last minute. Whether
 // it is connected is absent while the session follows the rule of bridges
@@ -24,7 +24,7 @@ export const presence = z.object({
     .optional()
     .describe(
       "When the session's agent last checked in, through any route but its bridge's background " +
-        "ones, to within a minute; absent until it first does.",
+        "ones; absent until it first does.",
     ),
   quiet: z
     .boolean()

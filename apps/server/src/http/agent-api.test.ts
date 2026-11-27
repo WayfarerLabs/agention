@@ -354,21 +354,20 @@ describe("presence", () => {
         .get() as { last_seen_at: number | null }
     ).last_seen_at;
 
-  it("stamp the session seen on every call, a refused one too, to the minute", async () => {
+  it("stamp the session seen on every call, a refused one too", async () => {
     expect(lastSeen()).toBeNull();
     await list(approved);
-    const first = harness.fixture.now;
-    expect(lastSeen()).toBe(first);
-    harness.fixture.advance(30_000);
+    expect(lastSeen()).toBe(harness.fixture.now);
+    harness.fixture.advance(1);
     expect(codeOf(await harness.agent(approved, "GET", "/s/builder/main/threads/9"))).toBe(
       "not_found",
     );
-    expect(lastSeen()).toBe(first);
-    harness.fixture.advance(30_000);
+    expect(lastSeen()).toBe(harness.fixture.now);
+    harness.fixture.advance(1);
     expect(codeOf(await harness.agent(approved, "GET", "/s/builder/main/threads?limit=0"))).toBe(
       "invalid_input",
     );
-    expect(lastSeen()).toBe(first + 60_000);
+    expect(lastSeen()).toBe(harness.fixture.now);
   });
 
   it("stamp the session when its approved key registers, the first call of a conversation", async () => {

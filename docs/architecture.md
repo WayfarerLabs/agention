@@ -245,15 +245,15 @@ replaces them) and which asks are open (`open_asks`: on a live message, and no l
 or withdraws them).
 
 A thread changes only its latest sequence, which a trigger holds. A session records when its agent
-last checked in, kept to the minute, with the agent API version of that call, when its bridge last
-made a background request, the nudge a bridge has claimed and not yet said the outcome of, by the
-attempt's id, the bridge's id and the server's clock, and apart from it its latest nudge: the latest
-claim that settled, with its time, id and outcome, sent, stopped or failed; and when the latest
-claim released as an orphan was claimed. `monitor_reports` holds each session's latest monitoring
-report, one row each, which the next replaces, its checks holding the report's shape, whether the
-session can be nudged and why it cannot be monitored or nudged among it. Checks hold the rest of
-what the store keeps true: one operator, whose id is 1; a registration's session set exactly when it
-is approved or revoked; and a message's detail only beside its text.
+last checked in, with the agent API version of that call, when its bridge last made a background
+request, the nudge a bridge has claimed and not yet said the outcome of, by the attempt's id, the
+bridge's id and the server's clock, and apart from it its latest nudge: the latest claim that
+settled, with its time, id and outcome, sent, stopped or failed; and when the latest claim released
+as an orphan was claimed. `monitor_reports` holds each session's latest monitoring report, one row
+each, which the next replaces, its checks holding the report's shape, whether the session can be
+nudged and why it cannot be monitored or nudged among it. Checks hold the rest of what the store
+keeps true: one operator, whose id is 1; a registration's session set exactly when it is approved or
+revoked; and a message's detail only beside its text.
 
 `message_positions` gives every message a position among all messages, in the order they are
 written, which the operator's wait across sessions counts from. A message has no stable integer key
@@ -480,16 +480,11 @@ so a call refused later still counts.
   that says `background`, which the registration route reads from its body, stamp when the session's
   bridge last made one, on every one, and never mark the agent checked in. A registration's stamp
   follows its body's parse, so a body that fails to parse stamps nothing.
-- **Checking in.** Every other call is the agent checking in, stamped with the agent API version the
-  call states, and only when that moves the last check-in a minute or more, when the last check-in
-  is after now, so a clock stepped back never holds it still, when the version differs from the last
-  one's, or when the last check-in is before the latest message someone other than the agent wrote
-  in one of the session's threads, the claim of a nudge under way or the latest nudge, so a call
+- **Checking in.** Every other call is the agent checking in, stamped on every call with the agent
+  API version the call states, so a check-in's order against each message and nudge is exact: a call
   after a message always counts as checking in since it, and a check-in during a nudge, or in reply
-  to one, always shows. The latest message is found by walking the session's messages back from the
-  newest on the index of their positions in the session, past the agent's own, so the check costs a
-  few rows, not the session's history. A stamp wakes no poll, though it can end a nudge being due,
-  since the bridge's claim checks again that one is.
+  to one, always shows. A stamp wakes no poll, though it can end a nudge being due, since the
+  bridge's claim checks again that one is.
 - A stamp writes only while the registration is still approved, so a revocation that commits as a
   token is verified stamps nothing.
 - A stamp that fails is logged and the call carries on, since presence is advisory.
@@ -498,7 +493,7 @@ so a call refused later still counts.
 From those the reads derive, against the request's clock and never stored:
 
 - **Quiet**: the agent never checked in, or has not within `agention serve --quiet-minutes`, 15 by
-  default, and the minute a stamp may lag, so an agent that keeps calling never is quiet.
+  default.
 - **Connected**: the bridge made a background request within the last minute. A bridge older than
   agent API version 8 cannot report a connection, so while no bridge is connected and the agent last
   checked in through such a bridge, as every check-in from before versions were kept did, the

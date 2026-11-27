@@ -88,19 +88,18 @@ every check that can be made before each key.
   Backspace that did not remove one character, a message that did not show exactly, anything that
   went wrong once Enter was sent, since the harness may have taken the message, or a harness that
   did not take it; and **sent**. The server fills in only the claim the id names: a deferred attempt
-  releases it, and the others settle it as the latest nudge. It stamps the agent's next check-in
-  after a claim, or after a message someone else wrote to the session, at once, so the operator sees
-  a session **not responding to the nudge** only while a nudge has had no check-in since. A claim
-  whose outcome has not arrived is under way, never sent, and the operator sees nothing of it until
-  it settles, since it may yet be deferred. The server records which bridge made it; when another
-  bridge comes to act for the session while it is under way, as after a restart or a takeover,
-  nothing proves its text reached the pane, so the server releases it as deferred, the first time
-  since the agent last checked in, and settles it as failed the next, so a bridge that keeps
-  stopping mid-nudge raises a problem rather than warning the agent again and again. A nudge that
-  failed or was stopped strands the thread it was for at once; only a failed nudge, and nudge text
-  left at the prompt, read as problems. A nudge the observer finds the session not ready for puts
-  nothing in the pane, is not claimed and is no nudge: the bridge tries again about a second later
-  while one is due, reading only the pane.
+  releases it, and the others settle it as the latest nudge. It stamps every check-in, so the
+  operator sees a session **not responding to the nudge** only while a nudge has had no check-in
+  since. A claim whose outcome has not arrived is under way, never sent, and the operator sees
+  nothing of it until it settles, since it may yet be deferred. The server records which bridge made
+  it; when another bridge comes to act for the session while it is under way, as after a restart or
+  a takeover, nothing proves its text reached the pane, so the server releases it as deferred, the
+  first time since the agent last checked in, and settles it as failed the next, so a bridge that
+  keeps stopping mid-nudge raises a problem rather than warning the agent again and again. A nudge
+  that failed or was stopped strands the thread it was for at once; only a failed nudge, and nudge
+  text left at the prompt, read as problems. A nudge the observer finds the session not ready for
+  puts nothing in the pane, is not claimed and is no nudge: the bridge tries again about a second
+  later while one is due, reading only the pane.
 - **Why it cannot, on the session, for the operator alone.** The bridge's report says why the
   session cannot be monitored or nudged, where it cannot, as one reason from a fixed list with since
   when: no socket, a pane it cannot read or that is not the session's alone, a profile or nudge type
@@ -144,7 +143,5 @@ every check that can be made before each key.
   session that can be nudged it follows the nudge rather than the session being quiet or stopped,
   and a thread whose agent checked in without reading it is ignored, a status of its own, rather
   than stranded.
-- Check-ins are stamped to the minute, so a check-in up to a minute after the operator writes can
-  leave a nudge due for a message the agent already saw; the agent reading the thread ends it.
 - Other nudge types, such as a host's SDK, can join behind the same server rule, claim and outcome;
   each needs its own decision on what it may send.

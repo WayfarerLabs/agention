@@ -9,11 +9,13 @@ import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
 import { archiveThread, markRead } from "./marks.ts";
-import { seenStep } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
 import { listSessions, readSessionLog, sessionLog, updateSession } from "./sessions.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, hour, threadTarget } from "./test-fixture.ts";
+
+// A minute, a step the tests leave between one event and the next.
+const minute = 60_000;
 
 let fixture: Fixture;
 let agent: Agent;
@@ -405,7 +407,7 @@ describe("listSessions", () => {
       if (report !== undefined) {
         fixture.report(session, report);
       }
-      fixture.advance(seenStep);
+      fixture.advance(minute);
     };
     at("working-early", { state: "working" });
     at("stopped-early", { state: "stopped", outcome: "completed" });
@@ -436,7 +438,7 @@ describe("listSessions", () => {
     fixture.connect(agent);
     fixture.connect(other);
     expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 0, ignored: 0 });
-    fixture.advance(defaultQuietAfter + seenStep + 1);
+    fixture.advance(defaultQuietAfter + 1);
     expect(summary().threads).toEqual({ total: 2, unread: 0, stranded: 2, ignored: 0 });
     fixture.thread(agent.identity, threadTarget(agent, 1));
     fixture.write(agent.identity, threadTarget(agent, 1), { text: "Read." });
