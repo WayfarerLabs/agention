@@ -1,5 +1,6 @@
 import type { AskSummary, OpenAsks, ThreadSummary } from "@wayfarerlabs/agention-api";
 import {
+  type FocusEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -163,6 +164,14 @@ export function ThreadRow({
       }
     };
   }, []);
+  // The browser brings into view only the link that takes focus, so a row
+  // whose ring shows comes into view whole, the ring and anything beneath
+  // the link included, however focus came: a key, Tab or a landing.
+  const onFocus = (event: FocusEvent) => {
+    if (event.target === link.current && event.target.matches(":focus-visible")) {
+      event.currentTarget.scrollIntoView?.({ block: "nearest" });
+    }
+  };
   // Opening the thread already open beside the list lands in its pane.
   const openAgain = () => {
     const page = link.current?.closest("main");
@@ -196,6 +205,7 @@ export function ThreadRow({
     <li
       className={classes.filter(Boolean).join(" ")}
       onClickCapture={onClickCapture}
+      onFocus={onFocus}
       {...press.handlers}
     >
       {selection !== undefined && (!selection.touch || selection.selecting) && (

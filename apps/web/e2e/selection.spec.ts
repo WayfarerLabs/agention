@@ -4,7 +4,8 @@
 // read, beside a thread too, and declining their asks before archiving them,
 // which the agent reads; on a phone, holding a row down to select it, a tap
 // selecting another in place of opening it, and the bar fitting the
-// screen as it archives them.
+// screen as it archives them; and the focus ring around a whole row, beside
+// its checkbox and its pull request, which j and k bring into view whole.
 import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import type { ThreadGetResult } from "@wayfarerlabs/agention-api";
 import type { Agent } from "./agent.ts";
@@ -354,6 +355,89 @@ test("side by side, each pane's bar keeps to its pane, the list's on the screen 
   // The list's bar covers the pane's foot, so no row shows beneath it.
   const [bar, pane] = await Promise.all([boxOf(listBar()), boxOf(list())]);
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(pane.y + pane.height - 1);
+});
+
+// ringsRow says the one focus ring that the row or an element in it draws
+// outlines the row's card, as far beyond it on every side.
+async function ringsRow(row: Locator): Promise<void> {
+  const { rings, card } = await row.evaluate((shown) => {
+    const box = (element: Element) => element.getBoundingClientRect();
+    const rings = [shown, ...shown.querySelectorAll("*")].flatMap((element) => {
+      const style = getComputedStyle(element);
+      if (style.outlineStyle === "none" || parseFloat(style.outlineWidth) === 0) {
+        return [];
+      }
+      const out = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+      const { left, top, right, bottom } = box(element);
+      return [{ left: left - out, top: top - out, right: right + out, bottom: bottom + out }];
+    });
+    const { left, top, right, bottom } = box(shown);
+    return { rings, card: { left, top, right, bottom } };
+  });
+  expect(rings).toHaveLength(1);
+  const ring = rings[0] ?? card;
+  const beyond = [
+    card.left - ring.left,
+    card.top - ring.top,
+    ring.right - card.right,
+    ring.bottom - card.bottom,
+  ];
+  expect(beyond[0]).toBeGreaterThan(0);
+  for (const side of beyond) {
+    expect(Math.abs(side - (beyond[0] ?? 0))).toBeLessThanOrEqual(0.5);
+  }
+}
+
+test("side by side, the focus ring outlines the whole row, the current one and a selected one too, and j and k bring the ring into view within the pane, above its bar", async () => {
+  // Rows with a pull request beneath their link, enough to fill the pane.
+  for (let index = 1; index <= 6; index += 1) {
+    const answer = await agent.send("POST", threads, {
+      request_id: `ring-${index}`,
+      title: `Ring ${index}`,
+      text: "Have a look.",
+      pull_requests: [{ repo: "acme/agention", number: 100 + index }],
+    });
+    expect(answer.status, JSON.stringify(answer.body)).toBe(200);
+  }
+  const wide = page.viewportSize() ?? { width: 1280, height: 800 };
+  try {
+    await resize(page, { width: 1280, height: 600 });
+    await page.goto("/");
+    const rows = page.locator("ul.threads > li");
+    const first = rows.first();
+    await first.locator("a.thread-link").click();
+    await expect(first.locator("a.thread-link")).toHaveAttribute("aria-current", "page");
+    await first.locator("input.row-select").focus();
+    await page.keyboard.press("Tab");
+    await expect(first.locator("a.thread-link")).toBeFocused();
+    await ringsRow(first);
+    await page.keyboard.press("x");
+    await expect(first).toHaveClass(/selected/);
+    await ringsRow(first);
+
+    // Each row j and then k reach shows its whole ring in the pane, above
+    // its bar.
+    const focused = page.locator("ul.threads > li:has(> a.thread-link:focus)");
+    const count = await rows.count();
+    const steps = [
+      ...Array.from({ length: count - 1 }, (_, index) => ["j", index + 1] as const),
+      ...Array.from({ length: count - 1 }, (_, index) => ["k", count - 2 - index] as const),
+    ];
+    for (const [key, step] of steps) {
+      await page.keyboard.press(key);
+      await expect(rows.nth(step).locator("a.thread-link")).toBeFocused();
+      await ringsRow(focused);
+      const [card, pane, bar] = await Promise.all([
+        boxOf(focused),
+        boxOf(list()),
+        boxOf(listBar()),
+      ]);
+      expect(card.y - 5).toBeGreaterThanOrEqual(pane.y);
+      expect(card.y + card.height + 5).toBeLessThanOrEqual(bar.y);
+    }
+  } finally {
+    await resize(page, wide);
+  }
 });
 
 test("the pages ran without a console error or a page error", () => {
