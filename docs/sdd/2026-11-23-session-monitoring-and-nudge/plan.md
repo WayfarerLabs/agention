@@ -54,6 +54,9 @@
 - [x] Renumbered after main took agent API versions 6 and 7 and migration 10 for pull request and
       branch links: monitoring is agent API version 8 and migration 11. Done when the gates pass on
       the pull request brought up to date with main.
+- [ ] Renumbered again after main took ADRs 0006 and 0007 and migrations 11 and 12 for the audit log
+      and saved views: monitoring's ADR is 0008 and its migration 13. Done when the gates pass on
+      the pull request brought up to date with main.
 
 ### Pull request 1b (#152): the sessions view
 
@@ -97,6 +100,8 @@
       harness control"; review checklist A1 and A6; and the rest of E1. Done when the drift check
       passes and the project review finds none stale.
 - [ ] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
+      pass on the pull request brought up to date with main.
+- [ ] Renumbered again as 1a was: the nudge's ADR is 0009 and its migration 14. Done when the gates
       pass on the pull request brought up to date with main.
 - [ ] M6's ignored status (ruling 8): a thread whose agent checked in at or after the operator's
       earliest unread message without reading it, the quiet time past, is ignored rather than
