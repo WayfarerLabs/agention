@@ -25,19 +25,24 @@ describe("the configuration", () => {
     expect(monitoringSettings({ tmuxSocket: "/from/option" }, environment)).toEqual({
       tmuxSocket: "/from/option",
       harnessProfile: "codex",
+      nudge: undefined,
     });
     expect(
       monitoringSettings({ tmuxSocket: "", harnessProfile: "generic-lenient" }, environment),
     ).toEqual({
       tmuxSocket: "/from/variable",
       harnessProfile: "generic-lenient",
+      nudge: undefined,
     });
     expect(
       monitoringSettings({}, { AGENTION_TMUX_SOCKET: "", AGENTION_HARNESS_PROFILE: "" }),
     ).toEqual({
       tmuxSocket: undefined,
       harnessProfile: "auto",
+      nudge: undefined,
     });
+    expect(monitoringSettings({ nudge: "tmux" }, { AGENTION_NUDGE: "sdk" }).nudge).toBe("tmux");
+    expect(monitoringSettings({ nudge: "" }, { AGENTION_NUDGE: "tmux" }).nudge).toBe("tmux");
   });
 
   it("never reads the tmux the bridge happens to run in", () => {
@@ -75,12 +80,25 @@ describe("a report", () => {
     [{ activity: "at_rest", screen: "other_prompt" }, "other_prompt"],
     [{ activity: "at_rest", screen: "other" }, "waiting"],
   ] as const)("spells the observation %j as the condition %s", (observed, condition) => {
-    expect(reportOf("codex", { ...observed, since })).toEqual({
+    expect(reportOf("codex", { ...observed, since }, false)).toEqual({
       monitored: true,
       profile: "codex",
       condition,
       since: "2026-11-24T10:00:00.000Z",
+      nudge: false,
     });
+  });
+
+  it("says the session can be nudged with the nudge on, while the pane reads as anything but unknown", () => {
+    expect(reportOf("codex", { activity: "running", since }, true)).toMatchObject({
+      nudge: true,
+    });
+    expect(reportOf("codex", { activity: "unknown", since }, true)).toMatchObject({
+      nudge: false,
+    });
+    expect(reportOf("codex", { activity: "at_rest", screen: "input", since }, false)).toMatchObject(
+      { nudge: false },
+    );
   });
 
   it("puts a stopped-by reason beside the condition, prompt or not", () => {
@@ -88,30 +106,39 @@ describe("a report", () => {
       ["permission_prompt", "permission_prompt"],
       ["other", "waiting"],
     ] as const) {
-      const report = reportOf("codex", {
-        activity: "at_rest",
-        screen,
-        stoppedBy: { reason: "block" },
-        since,
-      });
+      const report = reportOf(
+        "codex",
+        {
+          activity: "at_rest",
+          screen,
+          stoppedBy: { reason: "block" },
+          since,
+        },
+        false,
+      );
       expect(report).toMatchObject({ condition, stopped_by: { reason: "block" } });
       expect(monitorReport.safeParse(report).success).toBe(true);
     }
   });
 
   it("writes the reset time of a usage limit as the agent API takes it", () => {
-    const report = reportOf("claude-code", {
-      activity: "at_rest",
-      screen: "permission_prompt",
-      since,
-      stoppedBy: { reason: "usage_limit", resetsAt: new Date("2026-11-24T15:00:00.000Z") },
-    });
+    const report = reportOf(
+      "claude-code",
+      {
+        activity: "at_rest",
+        screen: "permission_prompt",
+        since,
+        stoppedBy: { reason: "usage_limit", resetsAt: new Date("2026-11-24T15:00:00.000Z") },
+      },
+      false,
+    );
     expect(report).toEqual({
       monitored: true,
       profile: "claude-code",
       condition: "permission_prompt",
       since: "2026-11-24T10:00:00.000Z",
       stopped_by: { reason: "usage_limit", resets_at: "2026-11-24T15:00:00.000Z" },
+      nudge: false,
     });
     expect(monitorReport.safeParse(report).success).toBe(true);
   });
@@ -120,12 +147,16 @@ describe("a report", () => {
     ["one the API would not take", new Date("1990-01-01T00:00:00.000Z")],
     ["no time at all", new Date(Number.NaN)],
   ])("leaves out a reset time that is %s", (_, resetsAt) => {
-    const report = reportOf("claude-code", {
-      activity: "at_rest",
-      screen: "input",
-      since,
-      stoppedBy: { reason: "usage_limit", resetsAt },
-    });
+    const report = reportOf(
+      "claude-code",
+      {
+        activity: "at_rest",
+        screen: "input",
+        since,
+        stoppedBy: { reason: "usage_limit", resetsAt },
+      },
+      false,
+    );
     expect(report).toMatchObject({ stopped_by: { reason: "usage_limit" } });
     expect(monitorReport.safeParse(report).success).toBe(true);
     expect(JSON.stringify(report)).not.toContain("resets_at");
@@ -164,7 +195,9 @@ describe("monitoring", () => {
     const bridge = await harness.registered();
     await eventually(() => harness.held(), "the report");
     await delay(1500);
-    expect(harness.reports()).toEqual([{ monitored: false }]);
+    expect(harness.reports()).toEqual([
+      { monitored: false, unable: { reason: "no_socket", since: expect.any(String) } },
+    ]);
     expect(bridge.logged).toEqual([]);
   });
 
@@ -181,8 +214,18 @@ describe("monitoring", () => {
     await delay(3000);
     expect(conditions()).toEqual(["at_prompt", "running", "waiting"]);
     for (const report of harness.reports()) {
-      expect(Object.keys(report).sort()).toEqual(["condition", "monitored", "profile", "since"]);
+      expect(Object.keys(report).sort()).toEqual([
+        "condition",
+        "monitored",
+        "nudge",
+        "profile",
+        "since",
+        "unable",
+      ]);
+      // The nudge is off, which the operator sees as the reason, from start.
+      expect(report).toMatchObject({ unable: { reason: "nudge_off" } });
     }
+    expect(new Set(harness.reports().map((report) => report.unable?.since)).size).toBe(1);
   });
 
   it("chooses the profile of the harness the MCP client names", async () => {
@@ -216,8 +259,58 @@ describe("monitoring", () => {
       { pane: () => pane, client: { name: "claude-code", version: "2.1.332" } },
     );
     await eventually(() => harness.held(), "the report");
-    expect(harness.held()?.profile).toBe("generic-strict");
+    expect(harness.held()).toMatchObject({ profile: "generic-strict", unable: "unknown_profile" });
     expect(bridge.logged).toHaveLength(1);
+  });
+
+  it("reports why it cannot read the pane as that arises after it starts, changes and ends", async () => {
+    const pane = new DrawnPane();
+    const drawn = pane.snapshot.bind(pane);
+    let trouble: "none" | "unreadable" | "panes" = "none";
+    pane.snapshot = async () => {
+      if (trouble === "unreadable") {
+        throw new Error("no server running on the socket");
+      }
+      const snapshot = await drawn();
+      return trouble === "panes" ? { ...snapshot, onePane: false } : snapshot;
+    };
+    const bridge = await harness.registered(
+      { AGENTION_TMUX_SOCKET: "/drawn" },
+      { pane: () => pane },
+    );
+    await eventually(
+      () => (harness.held()?.condition === "at_prompt" ? true : undefined),
+      "at_prompt",
+    );
+    expect(harness.held()?.unable).toBe("nudge_off");
+    trouble = "unreadable";
+    await eventually(
+      () => (harness.held()?.unable === "pane_unreachable" ? true : undefined),
+      "the pane unreachable",
+    );
+    expect(harness.held()?.condition).toBe("unknown");
+    // The condition stays unknown while the reason changes.
+    trouble = "panes";
+    await eventually(
+      () => (harness.held()?.unable === "not_one_pane" ? true : undefined),
+      "more than one pane",
+    );
+    trouble = "none";
+    await eventually(
+      () => (harness.held()?.unable === "nudge_off" ? true : undefined),
+      "the pane back",
+    );
+    const reasons = harness.reports().map((report) => report.unable?.reason);
+    expect(reasons.filter((reason, i) => reason !== reasons[i - 1])).toEqual([
+      "nudge_off",
+      "pane_unreachable",
+      "not_one_pane",
+      "nudge_off",
+    ]);
+    // The agent is never told, and the tools work as without monitoring.
+    const answer = await bridge.call("thread_list");
+    expect(answer.isError).toBe(false);
+    expect(JSON.stringify(answer)).not.toMatch(/pane_unreachable|not_one_pane|nudge_off/);
   });
 
   it.each([
@@ -228,6 +321,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("pane_unreachable");
     expect(bridge.logged).toHaveLength(1);
     // The tools work as without monitoring.
     expect((await bridge.call("thread_list")).isError).toBe(false);
@@ -241,6 +335,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("pane_unreachable");
     expect(bridge.logged).toHaveLength(1);
   });
 
@@ -251,6 +346,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("not_one_pane");
     expect(bridge.logged).toHaveLength(1);
   });
 
@@ -283,6 +379,7 @@ describe("monitoring", () => {
     await eventually(() => harness.held(), "the report");
     await delay(2500);
     expect(conditions()).toEqual(["unknown"]);
+    expect(harness.held()?.unable).toBe("not_one_pane");
     expect(bridge.logged).toHaveLength(1);
     // Nothing of the screen reaches the log.
     expect(bridge.logged[0]).not.toContain("scripted");

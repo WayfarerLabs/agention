@@ -8,7 +8,9 @@
 // header, whose count lists just that session, its chip removing the filter,
 // at a phone's width too; and a thread stranded on a session at a prompt,
 // whose reason names its condition on the thread list, on the thread and in
-// the new-thread sheet.
+// the new-thread sheet; and a session that can be nudged, whose nudge its
+// bridge claimed and did not send, showing it on its line and stranding the
+// thread written to it.
 import type { BrowserContext, Page } from "@playwright/test";
 import {
   agentApi,
@@ -105,7 +107,9 @@ async function report(name: Name, condition: MonitorReport): Promise<void> {
   expect(reported.status).toBe(200);
 }
 
-const at = (condition: "permission_prompt" | "running"): MonitorReport => ({
+const at = (
+  condition: "permission_prompt" | "running" | "at_prompt",
+): Extract<MonitorReport, { monitored: true }> => ({
   monitored: true,
   profile: "claude-code",
   condition,
@@ -206,7 +210,7 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
   await reply.getByRole("textbox", { name: "Message" }).fill("Postgres.");
   await reply.getByRole("button", { name: "Send" }).click();
   // The thread says why it is stranded, naming the prompt.
-  await expect(page.locator(".thread-header .stranded")).toContainText(
+  await expect(page.locator(".thread-header .why-unread")).toContainText(
     /stalled.*permission prompt/,
   );
   // So does its row on the thread list.
@@ -214,6 +218,66 @@ test("a thread stranded on a session at a permission prompt names the prompt in 
   await expect(page.getByRole("link", { name: /Which database\?/ })).toContainText(
     /Stranded.*stalled.*permission prompt/,
   );
+});
+
+test("a session whose nudge failed shows it with its id, and strands the thread written to it, saying so", async () => {
+  const agent = agentOf("review");
+  const canBeNudged = (): Extract<MonitorReport, { monitored: true }> => ({
+    ...at("at_prompt"),
+    nudge: true,
+  });
+  await report("review", canBeNudged());
+  const created = await agent.send<WriteResult>("POST", "/s/builder/review/threads", {
+    request_id: "nudge-1",
+    title: "Ship it?",
+    text: "The release is ready.",
+  });
+  expect(created.status).toBe(200);
+  const thread = `/s/builder/review/threads/${created.body.number}`;
+  await page.goto(thread);
+  const reply = page.getByRole("region", { name: "Reply" });
+  await reply.getByRole("combobox", { name: "After sending" }).selectOption("stay");
+  await reply.getByRole("textbox", { name: "Message" }).fill("Ship it.");
+  await reply.getByRole("button", { name: "Send" }).click();
+  await expect(reply.getByRole("textbox", { name: "Message" })).toHaveValue("");
+  // Waiting for the nudge, the thread is not stranded.
+  await page.reload();
+  await expect(page.locator(".thread-header .why-unread")).toHaveCount(0);
+
+  // The bridge is told a nudge is due, claims it by its attempt's id, and
+  // says it failed.
+  const path = `/s/builder/review/monitor?bridge=${sessions.review.bridge}`;
+  const polled = await agent.send<{ nudge: boolean }>("GET", `${path}&wait=0`);
+  expect(polled.body.nudge).toBe(true);
+  const claim = `/s/builder/review/monitor/nudge?bridge=${sessions.review.bridge}`;
+  const id = "3f9a0c1d2e4b";
+  const claimed = await agent.send<{ go: boolean }>("POST", claim, { phase: "start", id });
+  expect(claimed.body.go).toBe(true);
+  const done = await agent.send("POST", claim, { phase: "done", id, outcome: "failed" });
+  expect(done.status).toBe(200);
+  await page.reload();
+  await expect(page.locator(".thread-header .why-unread")).toContainText(/nudge.*failed/);
+
+  // Nudge text left at the prompt shows on the session, as its bridge says.
+  await report("review", {
+    ...canBeNudged(),
+    unable: { reason: "nudge_text_left", since: canBeNudged().since },
+  });
+
+  // The sessions view shows the nudge and why it cannot be nudged in the
+  // warning's tone, the attempt's id with them, its line fitting a phone's
+  // width.
+  for (const size of [wide, phone]) {
+    await resize(page, size);
+    await page.goto("/sessions");
+    const seen = row("review").locator(".session-seen");
+    await expect(seen.locator(".session-nudge.warning")).toContainText(id);
+    await expect(seen.locator(".session-unable.warning")).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+    ).toBe(false);
+  }
+  await resize(page, wide);
 });
 
 test("the pages ran without an error", () => {

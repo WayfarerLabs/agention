@@ -2,21 +2,19 @@ import {
   formatTimestamp,
   type MonitorCondition,
   type MonitorProfile,
+  type MonitorReason,
   type MonitorState,
+  type NudgeState,
   type SessionPresence,
   type StoppedBy,
 } from "@wayfarerlabs/agention-api";
 import type { Store } from "./store.ts";
 
-// A session's presence: when its agent last checked in, kept to the minute,
-// with the agent API version it checked in with, and when its bridge last
-// made a background request. The reads derive from them whether it is quiet,
-// whether it is connected and whether its threads are stranded, and describe
-// it to the operator, with its bridge's latest report, as presenceOf does.
-
-// The step last seen moves in: a check-in stamps it only once that moves it
-// this far, so a polling agent writes about once a minute.
-export const seenStep = 60_000;
+// A session's presence: when its agent last checked in, with the agent API
+// version it checked in with, and when its bridge last made a background
+// request. The reads derive from them whether it is quiet, whether it is
+// connected and whether its threads are stranded, and describe it to the
+// operator, with its bridge's latest report, as presenceOf does.
 
 // How long a background request keeps a session connected. A bridge makes
 // one at least every 25 seconds while it runs, so a session stops showing
@@ -24,26 +22,23 @@ export const seenStep = 60_000;
 export const connectedFor = 60_000;
 
 // markCheckedIn stamps the agent of the session a registration acts for as
-// checked in now, with the agent API version of its call, when that moves
-// its last check-in a minute or more, when its last check-in is after now,
-// so a clock stepped back never holds it still, or when the version differs
-// from the last one's, so a session pinned to an older bridge is read by its
-// rule at once. The agent mount calls it on every call by an approved key
-// but its bridge's background ones, before the call's own work, in a
-// transaction of its own, so a call refused later still counts. A
-// registration that is not approved as it runs, pending or revoked since its
-// token was verified, stamps nothing.
+// checked in now, with the agent API version of its call, on every call, so
+// a check-in's order against each message and nudge is exact. A stamp wakes
+// no poll, though it can end a nudge being due: a claim checks again that
+// one is. The agent mount calls it on every call by an approved key but its
+// bridge's background ones, before the call's own work, in a transaction of
+// its own, so a call refused later still counts. A registration that is not
+// approved as it runs, pending or revoked since its token was verified,
+// stamps nothing.
 export function markCheckedIn(store: Store, registrationId: number, version: number): void {
   const { db } = store;
   db.transaction(() => {
     db.prepare(
       `UPDATE sessions SET last_seen_at = :now, last_seen_version = :version
        WHERE id = (
-           SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
-         )
-         AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version)`,
-    ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
+         SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
+       )`,
+    ).run({ now: store.clock(), registration: registrationId, version });
   });
 }
 
@@ -72,14 +67,22 @@ export interface MonitorRow {
   since: number | null;
   stopped_by: StoppedBy["reason"] | null;
   resets_at: number | null;
+  nudge: number | null;
+  unable: MonitorReason | null;
+  unable_since: number | null;
 }
 
 // monitorStateOf describes a report the row holds, as the operator sees it.
-// The table's checks hold a monitored row's profile, condition and since,
-// and a reset time only beside a usage limit.
+// The table's checks hold a monitored row's profile, condition and since, a
+// reset time only beside a usage limit, and why the bridge cannot monitor or
+// nudge only with since when.
 export function monitorStateOf(row: MonitorRow): MonitorState {
+  const unable =
+    row.unable === null || row.unable_since === null
+      ? {}
+      : { unable: { reason: row.unable, since: formatTimestamp(row.unable_since) } };
   if (row.monitored !== 1 || row.profile === null || row.condition === null || row.since === null) {
-    return { monitored: false };
+    return { monitored: false, ...unable };
   }
   const stoppedBy =
     row.stopped_by === null
@@ -95,27 +98,48 @@ export function monitorStateOf(row: MonitorRow): MonitorState {
     profile: row.profile,
     condition: row.condition,
     since: formatTimestamp(row.since),
+    nudge: row.nudge === 1,
     ...(stoppedBy === undefined ? {} : { stopped_by: stoppedBy }),
+    ...unable,
   };
 }
 
 // The columns of a session's presence, as a read selects them: when its
 // agent last checked in, whether it is quiet and connected, as quietOf and
-// connectedOf say, and its bridge's latest report.
+// connectedOf say, its bridge's latest report, and its latest nudge: the
+// latest claim that settled, its columns null until one first does. A claim
+// under way is never selected, since it may yet be deferred, which is no
+// nudge.
 export interface PresenceRow extends MonitorRow {
   last_seen_at: number | null;
   quiet: number;
   connected: number | null;
+  nudged_at: number | null;
+  nudge_id: string | null;
+  nudge_outcome: NudgeState["outcome"] | null;
 }
 
 // presenceOf describes a session's presence as the operator sees it. A
 // report shows only while its bridge is connected, so a bridge that ended
-// never leaves its last one standing as current.
+// never leaves its last one standing as current. The latest nudge shows
+// whether its bridge is connected or not, with its id and outcome, and
+// whether the agent has checked in since: the check-in stamp that
+// markCheckedIn always moves past it.
 export function presenceOf(row: PresenceRow): SessionPresence {
   return {
     ...(row.last_seen_at === null ? {} : { last_seen_at: formatTimestamp(row.last_seen_at) }),
     quiet: row.quiet === 1,
     ...(row.connected === null ? {} : { connected: row.connected === 1 }),
     ...(row.connected === 1 && row.monitored !== null ? { monitor: monitorStateOf(row) } : {}),
+    ...(row.nudged_at === null || row.nudge_id === null || row.nudge_outcome === null
+      ? {}
+      : {
+          last_nudge: {
+            at: formatTimestamp(row.nudged_at),
+            id: row.nudge_id,
+            outcome: row.nudge_outcome,
+            answered: row.last_seen_at !== null && row.last_seen_at >= row.nudged_at,
+          },
+        }),
   };
 }

@@ -948,6 +948,7 @@ describe("counts and groups", () => {
     { agent_read: "unread" },
     { agent_read: "stranded" },
     { agent_read: "stranded", agent: "builder" },
+    { agent_read: "ignored" },
     { status: "none", effort: "quick" },
     { agent: "builder" },
     { agent: ["builder", "reviewer"], status: "open" },
@@ -1024,6 +1025,7 @@ describe("counts and groups", () => {
         any: total({ agent_read: undefined }),
         unread: total({ agent_read: "unread" }),
         stranded: total({ agent_read: "stranded" }),
+        ignored: total({ agent_read: "ignored" }),
       });
       expect(counts.include_archived).toEqual({
         hide: total({ include_archived: undefined }),

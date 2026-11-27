@@ -3,11 +3,17 @@
 // is down, and starts bridges with a reporter paced for tests; and a pane a
 // test draws itself.
 import type { MonitorReport } from "@wayfarerlabs/agention-api";
-import type { Pane, Snapshot } from "@wayfarerlabs/agention-harness-observer";
+import type { Key, Pane, Snapshot } from "@wayfarerlabs/agention-harness-observer";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import type { ReporterTiming } from "./reporter.ts";
-import { BridgeHarness, type BridgeTestOptions, type TestBridge } from "./test-harness.ts";
+import {
+  agent,
+  BridgeHarness,
+  type BridgeTestOptions,
+  session,
+  type TestBridge,
+} from "./test-harness.ts";
 
 // Fast enough for tests, and a poll that ends within a second.
 export const timing: ReporterTiming = {
@@ -15,10 +21,18 @@ export const timing: ReporterTiming = {
   stateEvery: 50,
   retryFirst: 20,
   retryMost: 100,
+  nudgeEvery: 200,
+  claimWithin: 1000,
 };
 
-export async function eventually<T>(read: () => T | undefined, what: string): Promise<T> {
-  for (let tries = 0; tries < 400; tries++) {
+// eventually reads until read gives something, every 25 milliseconds, up to
+// tries times.
+export async function eventually<T>(
+  read: () => T | undefined,
+  what: string,
+  tries = 400,
+): Promise<T> {
+  for (let tried = 0; tried < tries; tried++) {
     const value = read();
     if (value !== undefined) {
       return value;
@@ -86,8 +100,42 @@ export class MonitorHarness extends BridgeHarness {
   // The report the server holds for the session, as its row has it.
   held(): Record<string, unknown> | undefined {
     return this.server.fixture.db
-      .prepare("SELECT monitored, profile, condition, stopped_by FROM monitor_reports")
+      .prepare(
+        "SELECT monitored, profile, condition, stopped_by, nudge, unable FROM monitor_reports",
+      )
       .get() as Record<string, unknown> | undefined;
+  }
+
+  // The session's claim under way and latest nudge, as its row has them: the
+  // id of the attempt claimed, and the id and outcome of the latest that
+  // settled, each null while there is none.
+  nudged(): Nudged {
+    return this.server.fixture.db
+      .prepare(
+        "SELECT nudge_claim_id AS claim, nudge_id AS id, nudge_outcome AS outcome FROM sessions",
+      )
+      .get() as unknown as Nudged;
+  }
+
+  // The nudges' claims and outcomes bridges sent.
+  nudgeRequests(): Seen[] {
+    return this.seen.filter(
+      (seen) => seen.method === "POST" && seen.path.endsWith("/monitor/nudge"),
+    );
+  }
+
+  // operatorStarts starts a thread with the session as the operator, through
+  // the web API, with the text given, and returns its number.
+  async operatorStarts(text: string): Promise<number> {
+    const response = await this.server.web("POST", `/s/${agent}/${session}/threads`, {
+      request_id: `operator-start-${this.seen.length}`,
+      title: text,
+      text,
+    });
+    if (response.status !== 200) {
+      throw new Error(`the operator's thread failed: ${JSON.stringify(response.body)}`);
+    }
+    return (response.body as { number: number }).number;
   }
 
   // When the session's bridge last made a background request, and its agent
@@ -126,6 +174,12 @@ export class MonitorHarness extends BridgeHarness {
   }
 }
 
+export interface Nudged {
+  claim: string | null;
+  id: string | null;
+  outcome: string | null;
+}
+
 // A pane whose screen a test sets: a prompt, ">" with the cursor after it,
 // until the test changes it.
 export class DrawnPane implements Pane {
@@ -135,9 +189,22 @@ export class DrawnPane implements Pane {
     cursor: { x: 2, y: 0, visible: true },
     hostHasTerminal: true,
     onePane: true,
+    keysBlocked: false,
+    lastTyped: undefined,
   };
+
+  // What the pane was sent, which changes nothing on its screen.
+  readonly sent: (string | Key)[] = [];
 
   async snapshot(): Promise<Snapshot> {
     return { ...this.screen, at: Date.now() };
+  }
+
+  async paste(line: string): Promise<void> {
+    this.sent.push(line);
+  }
+
+  async key(key: Key): Promise<void> {
+    this.sent.push(key);
   }
 }

@@ -9,7 +9,7 @@ import { z } from "zod";
 // before a field goes missing unnoticed. Every change to the agent contract
 // bumps version by one (CONTRIBUTING.md "The agent API"); oldest moves only by
 // a maintainer's decision.
-export const agentApi = { version: 8, oldest: 1 } as const;
+export const agentApi = { version: 9, oldest: 1 } as const;
 
 // The versions the server branches on. Most added fields to the agent's
 // answers: an answer to a request stating an older version leaves out every
@@ -30,6 +30,9 @@ export const summaryLinksAgentApiVersion = 7;
 // while no bridge is connected, follows the rule of the bridges before it and
 // is never shown disconnected.
 export const monitoringAgentApiVersion = 8;
+
+// The first version whose background polls answer whether a nudge is due.
+export const nudgeAgentApiVersion = 9;
 
 export const agentApiHeader = "Agention-Agent-API";
 

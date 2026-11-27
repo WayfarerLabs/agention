@@ -31,6 +31,8 @@ const frozen = [
   "5325889655de911ccfa4b4710b209e88db1a1930bf215eb08e9e314f13486a61",
   // 11, monitoring: check-in versions, background requests and monitor reports.
   "a6caf3294f9c7bd48aeb1dc3595926cb9b4cabdff649f3f37f4d60e2068619c5",
+  // 12, the nudge: whether a session can be nudged and why not, its claims and latest nudge.
+  "44390db094579a61e6a90848433b6d7031857387bbb22bb7009251b53a67abc1",
 ];
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");

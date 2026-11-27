@@ -355,7 +355,7 @@ describe("the operator's views", () => {
     expect(counts.body).toMatchObject({
       status: { any: 1, open: 0, answered: 0, withdrawn: 0, none: 1 },
       unread: { any: 1, unread: 1 },
-      agent_read: { any: 1, unread: 0, stranded: 0 },
+      agent_read: { any: 1, unread: 0, stranded: 0, ignored: 0 },
       agent: { agents: [{ agent: "builder", total: 1 }], truncated: false },
       session: { sessions: [{ agent: "builder", session: "main", total: 1 }], truncated: false },
       reset: 1,

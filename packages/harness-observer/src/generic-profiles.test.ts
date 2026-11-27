@@ -9,23 +9,38 @@ function snapshot(row: string, x: number, visible = true): Snapshot {
     cursor: { x, y: 1, visible },
     hostHasTerminal: true,
     onePane: true,
+    keysBlocked: false,
+    lastTyped: undefined,
     at: 0,
   };
 }
 
-const input = { kind: "input" };
 const other = { kind: "other" };
 
 describe("the generic profiles", () => {
-  it("find the input line when the cursor shows with nothing after it", () => {
-    expect(genericStrict.screen(snapshot("> draft", 7))).toEqual(input);
-    expect(genericStrict.screen(snapshot("> draft", 8))).toEqual(input);
-    expect(genericLenient.screen(snapshot("> draft", 7))).toEqual(input);
+  it("find the input line, the whole row, when the cursor shows with nothing after it", () => {
+    // The spaces a capture trims count up to the cursor; the cursor takes
+    // the column after the text, so 20 columns leave 12 after "> draft".
+    const atEnd = { kind: "input", input: { text: "> draft", cursorAtEnd: true, room: 12 } };
+    expect(genericStrict.screen(snapshot("> draft", 7))).toEqual(atEnd);
+    expect(genericStrict.screen(snapshot("> draft", 8))).toEqual({
+      kind: "input",
+      input: { text: "> draft ", cursorAtEnd: true, room: 11 },
+    });
+    expect(genericLenient.screen(snapshot("> draft", 7))).toEqual(atEnd);
   });
 
   it("differ on a cursor showing before the end of its row", () => {
     expect(genericStrict.screen(snapshot("> draft", 4))).toEqual(other);
-    expect(genericLenient.screen(snapshot("> draft", 4))).toEqual(input);
+    expect(genericLenient.screen(snapshot("> draft", 4))).toEqual({
+      kind: "input",
+      input: { text: "> draft", cursorAtEnd: false, room: 12 },
+    });
+  });
+
+  it("leave no room on a full row", () => {
+    const full = "x".repeat(19);
+    expect(genericStrict.screen(snapshot(full, 19))).toMatchObject({ input: { room: 0 } });
   });
 
   it("find no input line where the cursor is hidden, or off the screen", () => {
@@ -43,11 +58,14 @@ describe("the generic profiles", () => {
   it.each([
     ["CJK ideographs", "> 日本語", 8],
     ["an emoji", "> ok \u{1f600}", 7],
-    ["a combining mark", "> café", 6],
-    ["a no-break space", "> a b", 5],
+    ["a combining mark", "> cafe\u0301", 6],
+    ["a no-break space", "> a\u00a0b", 5],
   ])("never find the input line on a row holding %s with the strict profile", (_, row, x) => {
     expect(genericStrict.screen(snapshot(row, x))).toEqual(other);
     expect(genericStrict.screen(snapshot(row, 19))).toEqual(other);
-    expect(genericLenient.screen(snapshot(row, x))).toEqual(input);
+    expect(genericLenient.screen(snapshot(row, x))).toMatchObject({
+      kind: "input",
+      input: { cursorAtEnd: false, room: 0 },
+    });
   });
 });

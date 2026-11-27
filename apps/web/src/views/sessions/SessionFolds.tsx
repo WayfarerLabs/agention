@@ -49,10 +49,10 @@ import {
 import { TagChip } from "./GroupsAndTags.tsx";
 import { NeedsYouLink, type ViewShown } from "./needs-you.tsx";
 import {
+  AgentReadLink,
   composeSessions,
   OpenAsksLink,
   SessionsRollupMarks,
-  StrandedLink,
   ThreadsLink,
 } from "./roll-ups.tsx";
 import { SessionRow, sessionKey } from "./SessionRow.tsx";
@@ -479,10 +479,10 @@ function AgentFolds({
   const inGroup = group === undefined ? undefined : group === noGroup ? noGroup : group.id;
   const level = group === undefined ? 3 : 4;
   return agents.filter(shows).map((entry) => {
-    const { asks, blocking, stranded, needing } = countsOf(entry);
+    const { asks, blocking, stranded, ignored, needing } = countsOf(entry);
     // The roll-up of an agent that left sessions out would be short, and so
-    // would its count of stranded threads, which then shows whether any of
-    // the sessions it lists has some, but not how many.
+    // would its counts of stranded and ignored threads, which then show
+    // whether any of the sessions it lists has some, but not how many.
     const rollup = entry.truncated ? undefined : composeSessions(entry.sessions);
     const sessions = plural(entry.sessions.length, "session");
     const fold =
@@ -529,8 +529,17 @@ function AgentFolds({
             </span>
             <ThreadsLink rollup={rollup} narrowing={narrowing} label={entry.agent} />
             {stranded > 0 && (
-              <StrandedLink
-                stranded={entry.truncated ? undefined : stranded}
+              <AgentReadLink
+                read="stranded"
+                count={entry.truncated ? undefined : stranded}
+                narrowing={narrowing}
+                label={entry.agent}
+              />
+            )}
+            {ignored > 0 && (
+              <AgentReadLink
+                read="ignored"
+                count={entry.truncated ? undefined : ignored}
                 narrowing={narrowing}
                 label={entry.agent}
               />
@@ -598,7 +607,8 @@ function AgentMenu({
 
 // countsOf adds up what an agent's sessions hold beyond their roll-up, all of
 // them, whatever the filter shows: their open asks, the blocking among them,
-// stranded threads, and how many of the sessions need the operator.
+// stranded threads, ignored threads, and how many of the sessions need the
+// operator.
 function countsOf(entry: Held) {
   const sum = (count: (session: SessionSummary) => number) =>
     entry.sessions.reduce((total, session) => total + count(session), 0);
@@ -606,6 +616,7 @@ function countsOf(entry: Held) {
     asks: sum((session) => session.open_asks.count),
     blocking: sum((session) => session.open_asks.blocking_count),
     stranded: sum((session) => session.threads.stranded),
+    ignored: sum((session) => session.threads.ignored),
     needing: entry.sessions.filter(sessionNeedsYou).length,
   };
 }

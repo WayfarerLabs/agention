@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { notReady } from "@wayfarerlabs/agention-harness-observer";
 import type { Monitor } from "./monitoring.ts";
 import { DrawnPane, eventually, MonitorHarness, timing } from "./monitoring-test-support.ts";
 import { Reporter } from "./reporter.ts";
@@ -205,6 +206,10 @@ describe("the reporter", () => {
         yield { monitored: false };
         await new Promise((resolve) => signal.addEventListener("abort", resolve));
       },
+      unable: () => undefined,
+      onUnableChange: () => undefined,
+      canNudge: () => Promise.resolve(false),
+      nudge: () => Promise.resolve(notReady),
     };
     const reporter = new Reporter({
       api,
@@ -227,7 +232,7 @@ describe("the reporter", () => {
   it("polls at most once a second while the server answers at once", async () => {
     harness.answer = (seen) =>
       seen.method === "GET" && seen.path.endsWith("/monitor")
-        ? serverJson({ replaced: false })
+        ? serverJson({ replaced: false, nudge: false })
         : undefined;
     await harness.registered();
     const before = harness.polls().length;

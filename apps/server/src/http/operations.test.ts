@@ -142,6 +142,7 @@ describe("the declarations", () => {
 const bodies: Record<string, unknown> = {
   updateSession: { state: "working" },
   reportMonitor: { monitored: false },
+  recordNudge: { phase: "start", id: "0123456789ab" },
   createThread: { request_id: "a-1", title: "t" },
   startThread: { request_id: "o-1", title: "t", text: "m" },
   sendMessage: { request_id: "m-1", seen_through: 1, text: "m" },
@@ -185,6 +186,7 @@ const queries: Record<string, unknown> = {
   uploadFile: { name: "notes.txt" },
   pollMonitor: { bridge: "bridge-0123456789", wait: "0" },
   reportMonitor: { bridge: "bridge-0123456789", seq: "1" },
+  recordNudge: { bridge: "bridge-0123456789" },
 };
 
 // The fixture's pending registration, which approving and rejecting decide.

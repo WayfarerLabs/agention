@@ -134,19 +134,25 @@ its own data directory and `--name`. Two can share a host, under different ports
 each other out.
 
 A session's agent checks in each time it calls Agention, and its session is seen then. One whose
-agent has not checked in within `--quiet-minutes`, plus the minute that may take to show, or never,
-is quiet: it has stopped, or is busy elsewhere. A session's bridge may also hold a background
-connection to the server, which is not the agent checking in; while it does, the session is
-**connected**, and it stops being so within a minute of the bridge ending. A bridge from before the
-background connection cannot report one, so a session whose agent last checked in through such a
-bridge, with no newer one connected, is never shown disconnected. A thread is **stranded** when its
-agent has not read your latest messages and its session is quiet, not connected, stopped or without
-an active credential. A session that reports it stopped says how, as **completed**, **withdrawn**
-(you called it off) or **stalled** (it cannot go on), and stays stopped until it reports working or
-idle. An idle session that writes to its threads without reporting a state or note, by a message, a
-new thread, or marking one read, unread or archived, is working from then on: the server marks it so
-itself and logs that it did, with no note. Checking for your answers changes nothing, and neither
-does anything you write.
+agent has not checked in within `--quiet-minutes`, or never, is quiet: it has stopped, or is busy
+elsewhere. A session's bridge may also hold a background connection to the server, which is not the
+agent checking in; while it does, the session is **connected**, and it stops being so within a
+minute of the bridge ending. A bridge from before the background connection cannot report one, so a
+session whose agent last checked in through such a bridge, with no newer one connected, is never
+shown disconnected. A thread is **stranded** when its agent has not read your latest messages and
+nothing will bring it to them soon: its session is quiet, stopped, not connected or without an
+active credential, or, for a session its bridge can nudge, the nudge did not come or did not bring
+it within `--quiet-minutes`. It is **ignored** instead when the agent checked in at or after your
+earliest message it has not read, and its latest nudge, without reading it, and `--quiet-minutes`
+have passed with nothing more to bring it there: the agent was there and left it unread, which says
+the session is not doing what it should
+([Presence, quiet and stranded](architecture.md#presence-quiet-and-stranded) gives the full rule). A
+session that reports it stopped says how, as **completed**, **withdrawn** (you called it off) or
+**stalled** (it cannot go on), and stays stopped until it reports working or idle. An idle session
+that writes to its threads without reporting a state or note, by a message, a new thread, or marking
+one read, unread or archived, is working from then on: the server marks it so itself and logs that
+it did, with no note. Checking for your answers changes nothing, and neither does anything you
+write.
 
 The data directory and the database must be private to the user running Agention, under the rule in
 [SECURITY.md](../SECURITY.md#private-files). `agention serve` creates a missing data directory, and
@@ -337,6 +343,7 @@ agent host gives it:
 | `AGENTION_CONNECT`         | A host and port to connect to in place of the origin's, such as a tunnel's; optional                                                         |
 | `AGENTION_TMUX_SOCKET`     | The socket of the tmux server this session's agent host runs in, set per session, to monitor its terminal; optional                          |
 | `AGENTION_HARNESS_PROFILE` | How to read that terminal, `auto` by default ([Monitoring a session's terminal](#monitoring-a-sessions-terminal))                            |
+| `AGENTION_NUDGE`           | `tmux` to have the bridge nudge the agent at its prompt when you write to it; off unless set ([The nudge](#the-nudge))                       |
 | `AGENTWORKS_AGENT`         | The agent's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session   |
 | `AGENTWORKS_SESSION`       | The session's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session |
 | `NODE_EXTRA_CA_CERTS`      | Node's own setting: a file of certificate authorities to trust, for a server with a private one                                              |
@@ -380,7 +387,8 @@ With the plugin, an agent:
 - shows at its terminal whatever it sends you in Agention, so you can follow either;
 - takes what you write in Agention as it takes what you type at its terminal, and brings its threads
   in line with what you tell it at its terminal;
-- keeps checking for your answers while any are open.
+- keeps checking for your answers while any are open, or, where its bridge nudges it, waits at its
+  prompt for the nudge.
 
 Then give the bridge the server's origin in `AGENTION_URL`. Set in your shell profile, such as
 `~/.bashrc` or `~/.zshrc`, it reaches the bridge in either host started from that shell: Claude Code
@@ -468,7 +476,7 @@ reason yet.
 
 The sessions view shows each connected session's condition, apart from the state its agent reports,
 flags each one at a permission prompt or another prompt, or stopped by something, as **Needs you**,
-and lists just those; a stranded thread's reason names its session's condition
+and lists just those; a stranded or ignored thread's reason names its session's condition
 ([The web UI](web-ui.md#the-sessions-view)).
 
 The bridge takes the tmux server's socket and how to read the terminal from options or variables, an
@@ -485,11 +493,13 @@ The socket names one session's tmux server, so set `AGENTION_TMUX_SOCKET` in tha
 environment, never globally (in a shell profile beside `AGENTION_URL`, say): the plugins start the
 bridge without options and pass it both variables, so every session started from that shell would
 name the same pane. The bridge never guesses the socket from the tmux it runs in. The tmux server
-must hold just the agent host's pane, as each Agentworks session's does; with more than one pane,
-the condition is unknown. Inside the session's tmux, `tmux display-message -p '#{socket_path}'`
-prints the socket's path. Agentworks runs every session in a tmux server of its own, and until it
-sets `AGENTION_TMUX_SOCKET` itself, set it by hand in the session's shell before starting the agent
-host there:
+must hold just the agent host's pane; with more than one pane, the condition is unknown. Inside the
+session's tmux, `tmux display-message -p '#{socket_path}'` prints the socket's path. The settings
+are named for what they configure, never for a platform, so any setup that runs each session in a
+tmux server of its own can set them: an execution platform that runs agent sessions sets them in
+each session's environment, and Agentworks, which runs every session in a tmux server of its own, is
+the first. Where nothing sets them for you, as with Agentworks until it does, set them by hand in
+the session's shell before starting the agent host there:
 
 ```sh
 export AGENTION_TMUX_SOCKET="${TMUX%%,*}"
@@ -506,7 +516,7 @@ unknown.
 `auto` reads the terminal with what Agention knows of the host that started the bridge, Claude Code
 or Codex, and with the strict generic profile for any other. The generic profiles tell only whether
 the host is running or waiting at what looks like its input line, the strict one more cautiously,
-and never name a prompt.
+never name a prompt, and never let the bridge nudge ([The nudge](#the-nudge)).
 
 The condition is advisory: whatever runs in the pane draws the screen it is read from, so a screen
 can imitate a dialog, and an agent can report its own session's condition, or keep it connected,
@@ -520,10 +530,132 @@ a tmux that leaves the pane's formats empty, a pane that does not run the bridge
 one pane, or a pane whose first process no longer holds the terminal. A profile name it doesn't know
 is logged once, and the strict generic profile reads the terminal instead.
 
+The sessions view shows why a session cannot be monitored or nudged, with since when, as its bridge
+reports it whenever that arises, not only as it starts, so trouble that begins later shows too: for
+example **Can't be monitored: the tmux pane cannot be read since 14:05**. The agent is not told: the
+reasons are yours. The bridge reports the first of these that applies:
+
+| Reason               | When                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `no_socket`          | No tmux socket is configured, so nothing is monitored                                   |
+| `pane_unreachable`   | The pane cannot be read: no tmux server at the socket, no `tmux`, no `/proc`            |
+| `not_one_pane`       | The tmux server holds more than one pane, or a pane that does not run the bridge        |
+| `unknown_profile`    | The harness profile is none the bridge knows                                            |
+| `unknown_nudge_type` | The nudge type is none the bridge knows                                                 |
+| `nudge_off`          | No nudge type is set                                                                    |
+| `generic_profile`    | The terminal is read with a generic profile, which never nudges                         |
+| `claims_refused`     | The server refused the bridge's nudges as invalid, so it nudges no more until restarted |
+| `nudge_text_left`    | Nudge text left at the prompt holds the nudge off until someone clears it               |
+
+Those that say how the session was set up, no socket and the nudge off, show only in its unfolded
+row; nudge text left at the prompt shows in the warning's color. A host that does not hold its
+terminal, as when it opened an editor, reads as unknown with no reason, since that is where the
+session is rather than trouble.
+
 A bridge started for the session that `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` name, with its key
 already on disk, as when an Agentworks session restarts, reports as it starts; any other reports
 once its agent registers or calls a tool. Several bridges can run for one session, as Codex starts a
 new one without ending the old; only the one started or called last reports.
+
+### The nudge
+
+An agent sees what you write only when it checks. Turn the nudge on, and an agent with nothing left
+to do waits at its prompt instead: when you write to its session and it has not checked in since,
+its bridge types one fixed message at its prompt telling it to check in with Agention, and the agent
+takes a turn, reads its unread threads and brings its status up to date. That holds whatever state
+it reported, so writing to a stopped session starts it again. The message names no thread and
+carries nothing you or anyone else wrote: what you wrote reaches the agent only through Agention's
+tools, as always. [ADR 0007](adrs/0007-the-nudge.md) records the decision, and
+[SECURITY.md](../SECURITY.md#the-agent-bridge) what the bridge sends.
+
+The nudge needs monitoring's socket and one setting more, an option winning over its variable:
+
+| Option    | Variable         | Value                                                                                 |
+| --------- | ---------------- | ------------------------------------------------------------------------------------- |
+| `--nudge` | `AGENTION_NUDGE` | `tmux`, the one type, which types into the pane `--tmux-socket` names; off without it |
+
+Where the platform that runs the session does not set it, as Agentworks does not yet, set it beside
+`AGENTION_TMUX_SOCKET` in the session's shell:
+
+```sh
+export AGENTION_TMUX_SOCKET="${TMUX%%,*}" AGENTION_NUDGE=tmux
+claude
+```
+
+A session can be nudged while the nudge is on, its bridge reads its terminal with its host's own
+profile, Claude Code's or Codex's, and the terminal reads as anything but unknown. A host with no
+profile of its own, read with a generic one, is monitored but never nudged: a generic profile reads
+the cursor's whole row as the input line, so it cannot tell a draft you left at the prompt from an
+empty prompt, and a nudge there would submit your draft. Once you approve it, the agent's `register`
+answer says whether answers reach it by a nudge or as it checks, and the usage skill has a nudged
+agent with nothing else to do report idle and end its turn, with no waiter of its own. A nudge type
+the bridge does not know, or `tmux` without a socket, is logged once and leaves the nudge off, and
+the tools work as without it.
+
+The bridge nudges only a session at its prompt, not stopped by a usage limit before it resets, with
+the host holding the terminal, the pane not in a mode such as copy mode that keeps keys from it, no
+key typed at an attached terminal for ten seconds (keys a script sends with `tmux send-keys` do not
+count), and its input line empty with room for the message. The server says a nudge is due only
+while the bridge's report finds the session at its prompt, so a session busy with a turn is nudged
+once it finishes; at its prompt but not yet ready, the bridge tries again each second while the
+nudge is due, reading only its terminal. Once it is ready, the bridge claims the nudge from the
+server, which allows one claim until the agent checks in, however many bridges the session has or
+however often they restart. Then it first puts a warning in the input line, saying a nudge is coming
+and that typing anything stops it. Both the warning and the message start with `Agention nudge` and
+an id drawn for that attempt, such as `Agention nudge 3f9a0c1d2e4b`, so the bridge knows nudge text
+wherever it sees it and takes only its own attempt's as its own, and the host's transcript records
+which attempt woke the agent. **To stop a nudge, type anything over the warning** within its five
+seconds: the bridge finds the line changed and leaves it, sending nothing. Otherwise it removes the
+warning, puts the message there and submits it, and checks that the host took it. It presses no key
+but Backspace, to remove its own text, and Enter, to submit its message, and puts text in the pane
+only as a paste.
+
+Each attempt ends in one of four ways:
+
+- **Deferred**: nothing of it stayed in the input line, so it is no nudge and the bridge tries again
+  while one is due, waiting longer after each attempt in a row that got as far as a claim, up to a
+  minute, so a screen that never stops changing, such as a clock in a status line, is not warned
+  over every few seconds. It put nothing there; or the rest of the screen changed while its warning
+  or message stood, or while it removed the warning, as when the host starts a turn or redraws, and
+  it took its text back; or, before it pressed Enter, the line came empty with no one typing, or the
+  terminal could not be read for a moment and it took its text back, and a second look, half a
+  second later, found the line empty. You see nothing of it.
+- **Stopped at the terminal**: someone typed into or over its text. That is the choice of whoever is
+  at the terminal, not a failure.
+- **Failed**: the terminal could not be read or written, and no look after found the line empty; the
+  input line went from the screen, as under a dialog, and was still out of sight half a second
+  later, since a line it cannot see may still hold its text; a Backspace did not remove one
+  character, as in Claude Code's vim normal mode, where Backspace moves the cursor; the message did
+  not show exactly; anything went wrong once it pressed Enter, since the host may have taken the
+  message; or the host did not take it. It leaves what it could not remove in the input line, never
+  submitted, and removes its message where the line still holds exactly that.
+- **Sent**: the host took the message.
+
+Nudge text left in the input line, by an earlier attempt or anyone else, is never removed and never
+pasted over: it holds the nudge off, and the session shows **Can't be nudged: nudge text left at the
+prompt** until you clear the line, when the nudge goes ahead. A bridge that another takes over from,
+or that closes, mid-nudge presses no key more, so it can leave the warning, or the message not yet
+submitted, in the input line. Its claim is then under way, and shows nothing, until another bridge
+takes the session, as one that starts again does: the first such claim since the agent last checked
+in is released, so the nudge is due again, and held off while the text it left stays on the line; a
+second is settled as failed.
+
+A session is nudged at most once until its agent next checks in, whatever that nudge's outcome; an
+attempt deferred does not count. An agent's first call after you write counts as checking in since
+your message, however soon, so it is never nudged for a message it checked in after. The sessions
+view's line shows what came of the latest, with its attempt's id: **nudged** and when, once the
+agent checked in; **not responding to the nudge** while it was sent and the agent has not checked in
+since; **nudge stopped at the terminal**; or **nudge failed**. A nudge under way shows nothing until
+its outcome comes, since it may yet be deferred. A failed nudge and one not responded to show in the
+warning's color; one stopped at the terminal does not. A thread whose latest nudge since your
+message failed or was stopped is stranded at once, saying which. An agent that checks in after a
+nudge without reading the thread it came for is not nudged for it again, so once `--quiet-minutes`
+pass after the nudge, the thread is ignored and says when the agent **checked in** without reading
+it, as it does for an agent that checked in at or after your message with no nudge due. An unfolded
+row says whether the session can be nudged. With these and **Connected** and its last check-in, you
+can tell a session that is offline, one that is online but not checking in, and one that did not
+respond to a nudge. The bridge logs each attempt it claimed by its id, outcome and step, never what
+was on the screen or what it typed.
 
 ### Reaching the server through a tunnel
 

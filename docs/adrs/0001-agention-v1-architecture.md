@@ -16,7 +16,10 @@ message text stays inert, and files load only as attachments, under that ADR's r
 view's tab counting the sessions with unread updates is superseded: a navigation badge counts only
 what its own tab lets the operator clear, so the Sessions tab counts the registrations waiting for
 approval and the Threads tab the unread threads, as [docs/architecture.md](../architecture.md) "Web
-UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates.
+UI" and [The web UI](../web-ui.md) describe; each session's row still marks its unread updates. Its
+"No push" is superseded for agents, and its "No permissions, no harness control" amended, by
+[ADR 0007](0007-the-nudge.md): where the operator turns it on, the bridge nudges an agent at its
+prompt with one fixed message, and those keys and texts are the one exception.
 
 ## Context
 
@@ -212,7 +215,9 @@ without an active credential, so the operator knows the agent is not there to re
 [ADR 0006](0006-session-monitoring.md) refines this: a session's bridge keeps a background
 connection whose requests show whether it is connected and never count as the agent's calls, a
 thread is stranded too while its session is not connected, and the bridge may report what its
-harness's terminal shows.
+harness's terminal shows. [ADR 0007](0007-the-nudge.md) refines it again for a session its bridge
+can nudge: such a session idles at its prompt rather than checking, and its thread is stranded not
+for being quiet or stopped but once a nudge did not bring it.
 
 ### One thread list
 
@@ -348,15 +353,19 @@ These are deliberate limits, not gaps to fill later without a new decision:
   explicitly reports.
 - **Agention never holds up an agent's work.** An agent asks and carries on, checking for answers as
   it works, and once its other work is done keeps checking, as cheaply as it can, while it has open
-  asks or unread messages. A session's reported state, its presence and its stranded threads show
-  the person when an agent is not there to read, so they know to resume it.
+  asks or unread messages, or, where its bridge nudges it ([ADR 0007](0007-the-nudge.md)), reports
+  `idle` and ends its turn until a nudge brings it back. A session's reported state, its presence
+  and its stranded threads show the person when an agent is not there to read, so they know to
+  resume it.
 - **No push.** Agention reaches the person only through its own web UI, with no notifications, email
   or other channel, and reaches an agent only when the agent checks, through `message_wait`.
   Standard MCP notifications reach neither host's model; waking an idle agent takes each host's own
   mechanism, which exists on both hosts, and is left for a later release so that polling, which
-  every host supports, works well first.
+  every host supports, works well first (for agents, superseded by [ADR 0007](0007-the-nudge.md):
+  the bridge may nudge an agent at its prompt).
 - **No permissions, no harness control.** Agention does not grant permissions, inject text into an
-  agent's conversation, or control an agent harness.
+  agent's conversation, or control an agent harness (amended by [ADR 0007](0007-the-nudge.md): the
+  nudge's one fixed message, its warning and the keys that place and submit them are the exception).
 - **No MCP endpoint or authorization server on the server.** Agent hosts reach Agention only through
   the bridge, over the plain HTTP API, with keys the operator approved. Serving MCP or running OAuth
   on the server would need the machinery the bridge avoids.

@@ -545,11 +545,11 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // withdrawal, the first of its message's; credential_active says whether its
 // session still has an approved credential. Its audience also sees its
 // session's presence, with its state and what its bridge last reported of
-// its terminal, and whether it is stranded: it holds a live message by the
-// audience that the session has not read while the session is quiet, has no
-// active credential, is not connected or has stopped. links counts the pull
-// requests and branches its live messages name, giving the one entry when
-// there is exactly one.
+// its terminal and its latest nudge, whether it is stranded or ignored, as
+// the agent_read filter's description says, and whether that nudge came
+// since the earliest of its messages the session has not read. links counts
+// the pull requests and branches its live messages name, giving the one
+// entry when there is exactly one.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -569,7 +569,29 @@ export const threadSummary = z.object({
   links: summaryLinks,
   credential_active: z.boolean(),
   presence: threadPresence.optional(),
-  stranded: z.boolean().optional(),
+  stranded: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the session has not read a message of yours here and nothing will bring it there " +
+        "soon, as the agent_read filter's stranded says.",
+    ),
+  ignored: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the session's agent checked in without reading a message of yours here and the " +
+        "quiet time has passed with nothing more to bring it there, as the agent_read filter's " +
+        "ignored says; never true with stranded.",
+    ),
+  nudged_since_unread: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the session's latest nudge was claimed at or after the earliest message of yours " +
+        "here it has not read, so it is the nudge that message is waiting on; false where there " +
+        "is no such message or no nudge since it.",
+    ),
 });
 export type ThreadSummary = z.infer<typeof threadSummary>;
 

@@ -226,8 +226,7 @@ const databaseFile = (data: string) => path.join(data, "agention.db");
 // the server's own carries.
 const serverLog = (io: Io) => (message: string) => io.stderr.write(`agention: ${message}\n`);
 
-// The bounds of --quiet-minutes: a minute, since last seen is kept to the
-// minute, up to a week.
+// The bounds of --quiet-minutes: a minute up to a week.
 const quietMinutes = { min: 1, max: 10_080 };
 
 // quietAfterFlag reads --quiet-minutes as the time in milliseconds after

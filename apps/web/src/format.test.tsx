@@ -1,4 +1,4 @@
-import type { MonitorCondition } from "@wayfarerlabs/agention-api";
+import type { MonitorCondition, NudgeState } from "@wayfarerlabs/agention-api";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -7,8 +7,10 @@ import {
   ConditionClause,
   conditionWords,
   dueTime,
+  nudgeWords,
   type Observed,
   observedOf,
+  sinceTime,
   terminalNeedsYou,
   type Whereabouts,
 } from "./format.tsx";
@@ -149,5 +151,145 @@ describe("why a session is away", () => {
     const words = absenceWords(quiet);
     expect(words.startsWith(absenceWords(unwatched))).toBe(true);
     expect(words.endsWith(conditionWords(asking))).toBe(true);
+  });
+});
+
+describe("why a session that can be nudged is away", () => {
+  const canBeNudged = { ...observed("at_prompt"), nudge: true };
+  const at = "2026-10-27T11:59:00.000Z";
+  const id = "3f9a0c1d2e4b";
+  const away = (overrides: Partial<Whereabouts> = {}, last_nudge?: NudgeState) =>
+    absenceOf({
+      presence: {
+        quiet: true,
+        connected: true,
+        monitor: canBeNudged,
+        ...(last_nudge === undefined ? {} : { last_nudge }),
+      },
+      credential_active: true,
+      ...overrides,
+    });
+
+  it("is not for waiting at its prompt, quiet or stopped, while a nudge will bring it", () => {
+    expect(away()).toBeUndefined();
+    expect(away({ state: "stopped", outcome: "completed" })).toBeUndefined();
+    expect(away({}, { at, id, outcome: "sent", answered: true })).toBeUndefined();
+  });
+
+  it("is for a latest nudge with no check-in since, whatever its outcome", () => {
+    for (const outcome of ["sent", "stopped", "failed"] as const) {
+      const nudge = { at, id, outcome, answered: false };
+      expect(away({}, nudge)).toEqual({ kind: "nudge", nudge, observed: canBeNudged });
+    }
+  });
+
+  it("says, of a stranded thread, that its latest nudge failed or was stopped, though answered since", () => {
+    const since = { stranded: true, nudged_since_unread: true };
+    for (const outcome of ["stopped", "failed"] as const) {
+      const nudge = { at, id, outcome, answered: true };
+      expect(away(since, nudge)).toEqual({ kind: "nudge", nudge, observed: canBeNudged });
+    }
+    expect(away(since, { at, id, outcome: "sent", answered: true })).toMatchObject({
+      kind: "no_nudge",
+    });
+  });
+
+  it("never names, of a stranded thread, a nudge from before the earliest message it has not read", () => {
+    for (const outcome of ["stopped", "failed"] as const) {
+      const nudge = { at, id, outcome, answered: true };
+      expect(away({ stranded: true, nudged_since_unread: false }, nudge)).toMatchObject({
+        kind: "no_nudge",
+      });
+    }
+  });
+
+  it("says why no nudge came to a stranded thread where nudge text left at the prompt held it off", () => {
+    const held = absenceOf({
+      presence: {
+        quiet: true,
+        connected: true,
+        monitor: { ...canBeNudged, unable: { reason: "nudge_text_left", since: at } },
+      },
+      credential_active: true,
+      stranded: true,
+    });
+    expect(held).toMatchObject({ kind: "no_nudge", unable: "nudge_text_left" });
+    const none = away({ stranded: true });
+    if (held === undefined || none === undefined) {
+      throw new Error("not away");
+    }
+    expect(absenceWords(held)).not.toBe(absenceWords(none));
+  });
+
+  it("says none came for a stranded thread, and puts a missing credential first", () => {
+    expect(away({ stranded: true })).toMatchObject({ kind: "no_nudge" });
+    expect(
+      away({ credential_active: false }, { at, id, outcome: "sent", answered: false }),
+    ).toMatchObject({
+      kind: "credential",
+    });
+  });
+
+  // ignored is an ignored thread's session, whose agent checked in at seen.
+  const seen = "2026-10-27T12:00:00.000Z";
+  const ignored = (last_nudge?: NudgeState) =>
+    absenceOf({
+      presence: {
+        last_seen_at: seen,
+        quiet: false,
+        connected: true,
+        monitor: canBeNudged,
+        ...(last_nudge === undefined ? {} : { last_nudge }),
+      },
+      credential_active: true,
+      ignored: true,
+    });
+
+  it("says when the agent of an ignored thread checked in, whatever its latest nudge", () => {
+    const shown = { kind: "ignored", last_seen_at: seen, observed: canBeNudged };
+    expect(ignored()).toEqual(shown);
+    expect(ignored({ at, id, outcome: "sent", answered: true })).toEqual(shown);
+  });
+
+  it("reads an ignored thread apart from every other outcome, with the check-in's time", () => {
+    const answered: NudgeState = { at, id, outcome: "sent", answered: true };
+    const passed = ignored(answered);
+    const none = away({ stranded: true });
+    if (passed === undefined || none === undefined) {
+      throw new Error("not away");
+    }
+    const words = absenceWords({ ...passed, observed: undefined });
+    expect(words).toContain(sinceTime(seen));
+    const others = [
+      absenceWords({ ...none, observed: undefined }),
+      ...[
+        answered,
+        { ...answered, answered: false },
+        { ...answered, outcome: "failed" as const },
+        { ...answered, outcome: "stopped" as const },
+      ].map(nudgeWords),
+    ];
+    expect(others).not.toContain(words);
+  });
+
+  it("reads each outcome its own way, with its time", () => {
+    const outcomes: NudgeState[] = [
+      { at, id, outcome: "sent", answered: false },
+      { at, id, outcome: "sent", answered: true },
+      { at, id, outcome: "failed", answered: false },
+      { at, id, outcome: "stopped", answered: false },
+    ];
+    const words = outcomes.map(nudgeWords);
+    expect(new Set(words).size).toBe(4);
+    for (const each of words) {
+      expect(each).toContain(sinceTime(at));
+    }
+    const unresponsive = away({}, outcomes[0]);
+    const unsent = away({}, outcomes[2]);
+    if (unresponsive === undefined || unsent === undefined) {
+      throw new Error("not away");
+    }
+    expect(absenceWords(unresponsive).startsWith(words[0] ?? "")).toBe(true);
+    expect(absenceWords(unsent).startsWith(words[2] ?? "")).toBe(true);
   });
 });

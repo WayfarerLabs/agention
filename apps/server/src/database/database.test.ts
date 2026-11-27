@@ -649,6 +649,19 @@ describe("monitor reports", () => {
     ["one without a pane", { monitored: 0, profile: null, condition: null, since: null }],
     ["a usage limit with its reset", { stopped_by: "usage_limit", resets_at: 2 }],
     ["a block at a permission prompt", { condition: "permission_prompt", stopped_by: "block" }],
+    ["a session that can be nudged", { nudge: 1 }],
+    ["why it cannot be nudged, with since when", { unable: "nudge_off", unable_since: 2 }],
+    [
+      "why there is no pane, with since when",
+      {
+        monitored: 0,
+        profile: null,
+        condition: null,
+        since: null,
+        unable: "no_socket",
+        unable_since: 2,
+      },
+    ],
   ])("hold %s", (_, columns) => {
     reported(columns);
     expect(database.prepare("SELECT count(*) AS count FROM monitor_reports").get()).toEqual({
@@ -667,6 +680,14 @@ describe("monitor reports", () => {
     ["a reset beside a block", { stopped_by: "block", resets_at: 2 }],
     ["a reset without a stop", { resets_at: 2 }],
     ["monitored as neither", { monitored: 2 }],
+    ["a nudge as neither", { nudge: 2 }],
+    [
+      "a nudge without a pane",
+      { monitored: 0, profile: null, condition: null, since: null, nudge: 1 },
+    ],
+    ["a reason why it cannot that is not one of the list", { unable: "tired", unable_since: 2 }],
+    ["a reason why it cannot without its since", { unable: "nudge_off" }],
+    ["a since without its reason", { unable_since: 2 }],
   ])("refuse %s", (_, columns) => {
     expect(() => reported(columns)).toThrow();
   });
@@ -674,6 +695,65 @@ describe("monitor reports", () => {
   it("hold one report per session", () => {
     reported();
     expect(() => reported({ condition: "waiting" })).toThrow();
+  });
+});
+
+describe("a session's nudges", () => {
+  let database: Database;
+
+  beforeEach(() => {
+    database = Database.open(path.join(root, "agention.db"));
+    database.prepare("INSERT INTO agents (name, created_at) VALUES ('agent', 1)").run();
+    database.prepare("INSERT INTO sessions (agent_id, name, created_at) VALUES (1, 's', 1)").run();
+  });
+
+  afterEach(() => {
+    database.close();
+  });
+
+  const nudged = (columns: Record<string, string | number | null>) =>
+    database
+      .prepare(
+        `UPDATE sessions SET ${Object.keys(columns)
+          .map((name) => `${name} = ?`)
+          .join(", ")} WHERE id = 1`,
+      )
+      .run(...Object.values(columns));
+
+  it("hold a claim and the latest nudge apart, each with its time and id", () => {
+    nudged({ nudge_claimed_at: 2, nudge_claim_id: "0123456789ab", nudge_claim_bridge: "b" });
+    nudged({
+      nudge_claimed_at: null,
+      nudge_claim_id: null,
+      nudge_claim_bridge: null,
+      nudged_at: 2,
+      nudge_id: "0123456789ab",
+      nudge_outcome: "stopped",
+    });
+    nudged({ nudge_claimed_at: 4, nudge_claim_id: "ba9876543210", nudge_claim_bridge: "b" });
+    expect(
+      database.prepare("SELECT nudge_claim_id, nudge_id, nudge_outcome FROM sessions").get(),
+    ).toEqual({
+      nudge_claim_id: "ba9876543210",
+      nudge_id: "0123456789ab",
+      nudge_outcome: "stopped",
+    });
+  });
+
+  it.each([
+    ["a claim without its id", { nudge_claimed_at: 2, nudge_claim_bridge: "b" }],
+    ["a claim without its bridge", { nudge_claimed_at: 2, nudge_claim_id: "0123456789ab" }],
+    ["a claim's id without its time", { nudge_claim_id: "0123456789ab" }],
+    ["a claim's bridge without its time", { nudge_claim_bridge: "b" }],
+    ["a nudge without its outcome", { nudged_at: 2, nudge_id: "0123456789ab" }],
+    ["a nudge without its id", { nudged_at: 2, nudge_outcome: "sent" }],
+    ["an outcome without a nudge", { nudge_outcome: "failed" }],
+    [
+      "an outcome it does not know",
+      { nudged_at: 2, nudge_id: "0123456789ab", nudge_outcome: "deferred" },
+    ],
+  ])("refuse %s", (_, columns) => {
+    expect(() => nudged(columns)).toThrow();
   });
 });
 
@@ -716,7 +796,8 @@ describe("a database an earlier release wrote", () => {
   }
 
   // unmonitored is the rows before, each session with the columns monitoring
-  // added, empty: no check-in's version is known and no bridge connected.
+  // and the nudge added, empty: no check-in's version is known, no bridge
+  // connected and none nudged.
   function unmonitored(before: Record<string, string[]>): Record<string, string[]> {
     return {
       ...before,
@@ -725,6 +806,13 @@ describe("a database an earlier release wrote", () => {
           ...(JSON.parse(row) as object),
           last_seen_version: null,
           background_at: null,
+          nudge_claimed_at: null,
+          nudge_claim_id: null,
+          nudge_claim_bridge: null,
+          nudge_orphan_claimed_at: null,
+          nudged_at: null,
+          nudge_id: null,
+          nudge_outcome: null,
         }),
       ),
     };

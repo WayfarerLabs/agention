@@ -1,7 +1,13 @@
 import {
   genericStrict,
   type HarnessClient,
+  type Key,
+  notReady,
+  type NudgeOptions,
+  type NudgeResult,
+  type NudgeTexts,
   type Observation,
+  type Observer,
   type Pane,
   PaneObserver,
   PaneUnusable,
@@ -15,16 +21,20 @@ import {
 import {
   formatTimestamp,
   type MonitorCondition,
+  type MonitorReason,
   type MonitorReport,
+  type MonitorUnable,
   quoted,
   timestamp,
 } from "@wayfarerlabs/agention-api";
 
-// Monitoring's side in the bridge: what its configuration names, and the
-// reports the reporter sends of what the harness observer reads from the
-// session's tmux pane. Nothing read from the pane leaves here but the
-// condition, the reason it stopped and their times; the log names the
-// problem with the pane, never what it shows.
+// Monitoring's side in the bridge: what its configuration names, the reports
+// the reporter sends of what the harness observer reads from the session's
+// tmux pane, and the nudges it asks the observer for. Nothing read from the
+// pane leaves here but the condition, the reason it stopped, their times,
+// whether the session can be nudged and, where it cannot be monitored or
+// nudged, why, from a fixed list; the log names the problem with the pane,
+// never what it shows.
 
 // Writes one line to the bridge's log, its standard error.
 export type Log = (line: string) => void;
@@ -34,19 +44,23 @@ export type Log = (line: string) => void;
 export interface MonitoringEnvironment {
   AGENTION_TMUX_SOCKET?: string | undefined;
   AGENTION_HARNESS_PROFILE?: string | undefined;
+  AGENTION_NUDGE?: string | undefined;
 }
 
 // The command line's monitoring options, which win over their variables.
 export interface MonitoringOptions {
   tmuxSocket?: string | undefined;
   harnessProfile?: string | undefined;
+  nudge?: string | undefined;
 }
 
-// The configuration monitoring runs with: the tmux server's socket, if any,
-// and the profile name, "auto" unless one is configured.
+// The configuration monitoring runs with: the tmux server's socket, if any;
+// the profile name, "auto" unless one is configured; and the nudge type, if
+// any, without which the nudge is off.
 export interface MonitoringSettings {
   tmuxSocket: string | undefined;
   harnessProfile: string;
+  nudge: string | undefined;
 }
 
 // monitoringSettings reads the options, else their variables. An empty value
@@ -61,15 +75,38 @@ export function monitoringSettings(
     tmuxSocket: given(options.tmuxSocket, environment.AGENTION_TMUX_SOCKET),
     harnessProfile:
       given(options.harnessProfile, environment.AGENTION_HARNESS_PROFILE) ?? autoProfile,
+    nudge: given(options.nudge, environment.AGENTION_NUDGE),
   };
 }
 
 const autoProfile = "auto";
 
-// A source of the reports the bridge sends while it acts for its session:
-// each yielded report replaces the one before. It never throws.
+// The nudge types the bridge knows: tmux, which types into the pane it
+// monitors. Others, such as a nudge through a host's SDK, may follow.
+export const nudgeTypes: readonly string[] = ["tmux"];
+
+// A source of the reports the bridge sends while it acts for its session,
+// each yielded report replacing the one before, and of the nudges it tries,
+// with why the configuration or the pane keeps the session from being
+// monitored or nudged, if either does, which the reporter adds to each
+// report. None of its methods throws.
 export interface Monitor {
   reports(signal: AbortSignal): AsyncIterable<MonitorReport>;
+  // unable says why the session cannot be monitored or nudged, with since
+  // when, where the configuration or the pane is why, the first that applies
+  // in the order of MonitorReason; and onUnableChange names what to call
+  // whenever that changes, as it can while the condition stays the same.
+  unable(): MonitorUnable | undefined;
+  onUnableChange(listener: () => void): void;
+  // canNudge says whether the session can be nudged now: the nudge is on,
+  // the pane can be read and runs the harness, and the profile can tell when
+  // it is at its prompt, as a harness's own profile can and a generic one
+  // cannot.
+  canNudge(): Promise<boolean>;
+  // nudge has the observer nudge the agent with the texts given, while the
+  // reports are being read and the session can be nudged; otherwise it puts
+  // nothing in the pane, never asks options.begin, and answers not-ready.
+  nudge(texts: NudgeTexts, options: NudgeOptions): Promise<NudgeResult>;
 }
 
 export interface PaneMonitorOptions {
@@ -81,6 +118,12 @@ export interface PaneMonitorOptions {
   // The pane at a socket path; a TmuxPane of this session's own unless a
   // test gives another.
   pane?: ((socket: string) => Pane) | undefined;
+  // The observer of a pane through a profile; a PaneObserver unless a test
+  // gives another.
+  observer?: ((pane: Pane, profile: Profile) => Observer) | undefined;
+  // The profile the pane is read with; the one the configuration chooses
+  // unless a test gives another.
+  profile?: Profile | undefined;
 }
 
 // sessionPane is the pane at a socket path, read only while its first
@@ -97,11 +140,25 @@ function sessionPane(socket: string): Pane {
 // once monitoring first starts, since the client names itself only once it
 // has initialized. A profile name the observer does not know is logged now,
 // once, and the strict generic profile reads the pane instead, as
-// selectProfile chooses for such a name.
+// selectProfile chooses for such a name. The nudge is on only with a nudge
+// type the bridge knows and a socket; a type it does not know, or the tmux
+// type without a socket, is logged now, once, and leaves the nudge off. Even
+// on, it nudges only through a profile that knows its harness's prompt
+// marker, so never through a generic one, which cannot tell a draft at the
+// prompt from an empty one.
+//
+// Its unable says why the session cannot be monitored or nudged, where it
+// cannot, with since when, in the order of MonitorReason: no socket; a pane
+// that cannot be read, or holds more than one pane or one not this
+// session's, from when that began; and then, from when the bridge started,
+// an unknown profile name, the nudge off or of a type the bridge does not
+// know, and a generic profile.
 export function createMonitor(options: PaneMonitorOptions): Monitor {
   const { settings, log } = options;
+  const started = formatTimestamp(Date.now());
   const name = settings.harnessProfile;
-  if (name !== autoProfile && !profileNames.includes(name)) {
+  const unknownProfile = name !== autoProfile && !profileNames.includes(name);
+  if (unknownProfile) {
     log(
       `the harness profile ${quoted(name)} is none of ` +
         `${[autoProfile, ...profileNames].join(", ")}, so monitoring reads the pane with ` +
@@ -109,20 +166,100 @@ export function createMonitor(options: PaneMonitorOptions): Monitor {
     );
   }
   const socket = settings.tmuxSocket;
+  const nudgeOn = nudgeConfigured(settings, log);
   if (socket === undefined) {
-    return { reports: unmonitored };
+    const unable: MonitorUnable = { reason: "no_socket", since: started };
+    return {
+      reports: (signal) => unmonitored(signal),
+      unable: () => unable,
+      onUnableChange: () => undefined,
+      canNudge: () => Promise.resolve(false),
+      nudge: () => Promise.resolve(notReady),
+    };
   }
   const pane = new LoggedPane((options.pane ?? sessionPane)(socket), log);
-  let profile: Profile | undefined;
+  // The harness observer's nudge carries out every check of the session's
+  // readiness and of each text it puts in the pane.
+  const observe = options.observer ?? ((watched, read) => new PaneObserver(watched, read));
+  let chosen = options.profile;
+  const profileOf = (): Profile => (chosen ??= selectProfile(name, options.client()));
+  const nudges = () => nudgeOn && profileOf().knowsMarker;
+  // Why the configuration keeps the session from being nudged, if it does.
+  const configured = (): MonitorReason | undefined => {
+    if (unknownProfile) {
+      return "unknown_profile";
+    }
+    if (settings.nudge === undefined) {
+      return "nudge_off";
+    }
+    if (!nudgeTypes.includes(settings.nudge)) {
+      return "unknown_nudge_type";
+    }
+    return profileOf().knowsMarker ? undefined : "generic_profile";
+  };
+  // The observer while the reports are being read, which nudges.
+  let observer: Observer | undefined;
   return {
     async *reports(signal) {
-      profile ??= selectProfile(name, options.client());
-      const observer = new PaneObserver(pane, profile);
-      for await (const observation of observer.observations(signal)) {
-        yield reportOf(profile.name, observation);
+      const profile = profileOf();
+      const watching = observe(pane, profile);
+      observer = watching;
+      try {
+        for await (const observation of watching.observations(signal)) {
+          yield reportOf(profile.name, observation, nudges());
+        }
+      } finally {
+        if (observer === watching) {
+          observer = undefined;
+        }
       }
     },
+    unable() {
+      const reason = configured();
+      return pane.unable ?? (reason === undefined ? undefined : { reason, since: started });
+    },
+    onUnableChange(listener) {
+      pane.onUnableChange = listener;
+    },
+    async canNudge() {
+      if (!nudges()) {
+        return false;
+      }
+      try {
+        const snapshot = await pane.snapshot();
+        return snapshot.onePane && snapshot.hostHasTerminal;
+      } catch {
+        return false;
+      }
+    },
+    nudge(texts, nudgeOptions) {
+      return nudges() && observer !== undefined
+        ? observer.nudge(texts, nudgeOptions)
+        : Promise.resolve(notReady);
+    },
   };
+}
+
+// nudgeConfigured says whether the nudge is on: a nudge type the bridge
+// knows, and the socket of the pane it types into. Anything else is logged,
+// once, and leaves it off.
+function nudgeConfigured(settings: MonitoringSettings, log: Log): boolean {
+  const { nudge, tmuxSocket } = settings;
+  if (nudge === undefined) {
+    return false;
+  }
+  if (!nudgeTypes.includes(nudge)) {
+    log(`the nudge type ${quoted(nudge)} is none of ${nudgeTypes.join(", ")}, so the nudge is off`);
+    return false;
+  }
+  if (tmuxSocket === undefined) {
+    log(
+      "the tmux nudge needs the tmux server's socket, which --tmux-socket or " +
+        "AGENTION_TMUX_SOCKET gives, so the nudge is off",
+    );
+    return false;
+  }
+  return true;
 }
 
 async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
@@ -135,17 +272,25 @@ async function* unmonitored(signal: AbortSignal): AsyncIterable<MonitorReport> {
 }
 
 // reportOf is the report of an observation: the profile's name, the
-// condition, since when, and what stopped the harness. A reset time the
-// agent API would not take, which a profile reads from the screen, is left
-// out rather than failing the report.
-export function reportOf(profile: string, observation: Observation): MonitorReport {
+// condition, since when, what stopped the harness, and whether the session
+// can be nudged: where the bridge nudges through the profile, whenever the
+// pane reads as anything but unknown. A reset time the agent API would not
+// take, which a profile reads from the screen, is left out rather than
+// failing the report.
+export function reportOf(
+  profile: string,
+  observation: Observation,
+  nudges: boolean,
+): MonitorReport {
   const { stoppedBy } = observation;
+  const condition = conditionOf(observation);
   return {
     monitored: true,
     profile,
-    condition: conditionOf(observation),
+    condition,
     since: formatTimestamp(observation.since.getTime()),
     ...(stoppedBy && { stopped_by: stoppedByOf(stoppedBy) }),
+    nudge: nudges && condition !== "unknown",
   };
 }
 
@@ -188,8 +333,22 @@ function stoppedByOf(
 // pane that is not this session's, a terminal server holding more than one
 // pane, or a harness that does not hold the terminal. The observer reads each
 // as unknown. A reading that finds the pane as it should be ends the stretch,
-// so a later problem is logged again.
+// so a later problem is logged again. It keeps, too, the reason the operator
+// sees for each, with since when, and says when that changes: a pane it
+// cannot read is pane_unreachable, and one that is not this session's alone
+// not_one_pane. A harness that does not hold the terminal, such as one that
+// opened an editor, gives no reason: it is a condition, read as unknown, not
+// trouble with the configuration or the pane.
 type PaneProblem = "unreadable" | PaneUnusable["reason"] | "panes" | "terminal";
+
+const reasonOf: Record<PaneProblem, MonitorReason | undefined> = {
+  unreadable: "pane_unreachable",
+  "no-proc": "pane_unreachable",
+  "old-tmux": "pane_unreachable",
+  "not-ancestor": "not_one_pane",
+  panes: "not_one_pane",
+  terminal: undefined,
+};
 
 const unknown = "so the session's condition is unknown";
 
@@ -197,6 +356,10 @@ class LoggedPane implements Pane {
   readonly #pane: Pane;
   readonly #log: Log;
   #problem: PaneProblem | undefined;
+  // Why the pane cannot be read, with since when, and what to call when that
+  // changes.
+  unable: MonitorUnable | undefined;
+  onUnableChange: (() => void) | undefined;
 
   constructor(pane: Pane, log: Log) {
     this.#pane = pane;
@@ -235,8 +398,19 @@ class LoggedPane implements Pane {
       );
     } else {
       this.#problem = undefined;
+      this.#reason(undefined);
     }
     return snapshot;
+  }
+
+  // paste and key pass to the pane, logging nothing: the nudge's observer
+  // reports how a nudge ended, and its texts never reach the log.
+  paste(line: string): Promise<void> {
+    return this.#pane.paste(line);
+  }
+
+  key(key: Key): Promise<void> {
+    return this.#pane.key(key);
   }
 
   #note(problem: PaneProblem, line: string): void {
@@ -244,6 +418,15 @@ class LoggedPane implements Pane {
       this.#problem = problem;
       this.#log(line);
     }
+    this.#reason(reasonOf[problem]);
+  }
+
+  #reason(reason: MonitorReason | undefined): void {
+    if (reason === this.unable?.reason) {
+      return;
+    }
+    this.unable = reason === undefined ? undefined : { reason, since: formatTimestamp(Date.now()) };
+    this.onUnableChange?.();
   }
 }
 

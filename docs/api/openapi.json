@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v8",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 8."
+    "version": "operator v1, agent v9",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 9."
   },
   "externalDocs": {
     "description": "How to call the operator API: keys, reading, waiting and files",
@@ -158,12 +158,13 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread. Stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged and a nudge is due that would bring its agent there, since a message was written after the agent last checked in, with none claimed since, but none was sent within the quiet time of that message; or, with none due that would bring it there, the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time, and the thread is not ignored. Ignored for such a thread, with no nudge due that would bring it there, whose agent checked in at or after both your earliest message there it has not read and its latest nudge without reading the thread, so it was there and left the thread unread; it shows only once that message is older than the quiet time, and never with stranded.",
             "schema": {
               "type": "string",
               "enum": [
                 "unread",
-                "stranded"
+                "stranded",
+                "ignored"
               ]
             }
           },
@@ -498,7 +499,16 @@
                             "$ref": "#/components/schemas/ThreadPresence"
                           },
                           "stranded": {
-                            "type": "boolean"
+                            "type": "boolean",
+                            "description": "Whether the session has not read a message of yours here and nothing will bring it there soon, as the agent_read filter's stranded says."
+                          },
+                          "ignored": {
+                            "type": "boolean",
+                            "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+                          },
+                          "nudged_since_unread": {
+                            "type": "boolean",
+                            "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
                           },
                           "group": {
                             "$ref": "#/components/schemas/GroupRef"
@@ -772,12 +782,13 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread. Stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged and a nudge is due that would bring its agent there, since a message was written after the agent last checked in, with none claimed since, but none was sent within the quiet time of that message; or, with none due that would bring it there, the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time, and the thread is not ignored. Ignored for such a thread, with no nudge due that would bring it there, whose agent checked in at or after both your earliest message there it has not read and its latest nudge without reading the thread, so it was there and left the thread unread; it shows only once that message is older than the quiet time, and never with stranded.",
             "schema": {
               "type": "string",
               "enum": [
                 "unread",
-                "stranded"
+                "stranded",
+                "ignored"
               ]
             }
           },
@@ -1109,12 +1120,18 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "ignored": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
                         "any",
                         "unread",
-                        "stranded"
+                        "stranded",
+                        "ignored"
                       ]
                     },
                     "include_archived": {
@@ -1574,12 +1591,13 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread. Stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged and a nudge is due that would bring its agent there, since a message was written after the agent last checked in, with none claimed since, but none was sent within the quiet time of that message; or, with none due that would bring it there, the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time, and the thread is not ignored. Ignored for such a thread, with no nudge due that would bring it there, whose agent checked in at or after both your earliest message there it has not read and its latest nudge without reading the thread, so it was there and left the thread unread; it shows only once that message is older than the quiet time, and never with stranded.",
             "schema": {
               "type": "string",
               "enum": [
                 "unread",
-                "stranded"
+                "stranded",
+                "ignored"
               ]
             }
           },
@@ -1891,7 +1909,16 @@
                           "$ref": "#/components/schemas/ThreadPresence"
                         },
                         "stranded": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "description": "Whether the session has not read a message of yours here and nothing will bring it there soon, as the agent_read filter's stranded says."
+                        },
+                        "ignored": {
+                          "type": "boolean",
+                          "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+                        },
+                        "nudged_since_unread": {
+                          "type": "boolean",
+                          "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
                         },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
@@ -2033,7 +2060,16 @@
                           "$ref": "#/components/schemas/ThreadPresence"
                         },
                         "stranded": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "description": "Whether the session has not read a message of yours here and nothing will bring it there soon, as the agent_read filter's stranded says."
+                        },
+                        "ignored": {
+                          "type": "boolean",
+                          "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+                        },
+                        "nudged_since_unread": {
+                          "type": "boolean",
+                          "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
                         },
                         "group": {
                           "$ref": "#/components/schemas/GroupRef"
@@ -3928,9 +3964,10 @@
                         "type": "string",
                         "enum": [
                           "unread",
-                          "stranded"
+                          "stranded",
+                          "ignored"
                         ],
-                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped."
+                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread. Stranded for one nothing will bring to it soon: the session has no active credential or is not connected; or it cannot be nudged, and is quiet or has stopped; or it can be nudged and a nudge is due that would bring its agent there, since a message was written after the agent last checked in, with none claimed since, but none was sent within the quiet time of that message; or, with none due that would bring it there, the latest nudge since your message was not sent, or was sent and the quiet time has passed since, or none was sent within the quiet time, and the thread is not ignored. Ignored for such a thread, with no nudge due that would bring it there, whose agent checked in at or after both your earliest message there it has not read and its latest nudge without reading the thread, so it was there and left the thread unread; it shows only once that message is older than the quiet time, and never with stranded."
                       },
                       "agent": {
                         "minItems": 1,
@@ -7592,7 +7629,7 @@
     "/api/agent/s/{agent}/{session}/monitor": {
       "get": {
         "operationId": "agentPollMonitor",
-        "summary": "Hold the session's background connection until the wait ends or another bridge acts",
+        "summary": "Hold the session's background connection until the wait ends, another bridge acts or a nudge is due",
         "tags": [
           "agent"
         ],
@@ -7642,6 +7679,15 @@
             }
           },
           {
+            "name": "nudge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
             "name": "wait",
             "in": "query",
             "required": false,
@@ -7668,10 +7714,14 @@
                   "properties": {
                     "replaced": {
                       "type": "boolean"
+                    },
+                    "nudge": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "replaced"
+                    "replaced",
+                    "nudge"
                   ]
                 }
               }
@@ -7774,6 +7824,141 @@
           }
         }
       }
+    },
+    "/api/agent/s/{agent}/{session}/monitor/nudge": {
+      "post": {
+        "operationId": "agentRecordNudge",
+        "summary": "Claim the nudge that is due for the session before trying it, or report how an attempt ended",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "const": "start"
+                      },
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{12}$",
+                        "description": "The nudge attempt's id, which its texts in the terminal carry."
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "id"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "phase": {
+                        "type": "string",
+                        "const": "done"
+                      },
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{12}$",
+                        "description": "The nudge attempt's id, which its texts in the terminal carry."
+                      },
+                      "outcome": {
+                        "type": "string",
+                        "enum": [
+                          "deferred",
+                          "stopped",
+                          "failed",
+                          "sent"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "phase",
+                      "id",
+                      "outcome"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    },
+                    "go": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced",
+                    "go"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7807,7 +7992,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "8"
+          "const": "9"
         }
       }
     },
@@ -8432,6 +8617,21 @@
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
         "description": "The profile the bridge reads the terminal with, such as claude-code."
       },
+      "MonitorReason": {
+        "type": "string",
+        "enum": [
+          "no_socket",
+          "pane_unreachable",
+          "not_one_pane",
+          "unknown_profile",
+          "unknown_nudge_type",
+          "nudge_off",
+          "generic_profile",
+          "claims_refused",
+          "nudge_text_left"
+        ],
+        "description": "Why the bridge cannot monitor the session's terminal or nudge its agent: no_socket, no tmux socket configured; pane_unreachable, the pane cannot be read; not_one_pane, the tmux server holds more than one pane or one that is not the session's; unknown_profile, a harness profile the bridge does not know; unknown_nudge_type, a nudge type it does not know; nudge_off, no nudge type configured; generic_profile, a generic profile, which never nudges; claims_refused, the server refused its nudges as invalid; nudge_text_left, nudge text left at the prompt, which holds the nudge off until it is cleared."
+      },
       "MonitorReport": {
         "oneOf": [
           {
@@ -8440,6 +8640,23 @@
               "monitored": {
                 "type": "boolean",
                 "const": false
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ]
               }
             },
             "required": [
@@ -8509,6 +8726,26 @@
                   }
                 ],
                 "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
+              },
+              "nudge": {
+                "type": "boolean"
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ]
               }
             },
             "required": [
@@ -8528,6 +8765,23 @@
               "monitored": {
                 "type": "boolean",
                 "const": false
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "description": "Since when, by the bridge's clock."
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ],
+                "description": "Why the bridge cannot monitor the session's terminal or nudge its agent, where it cannot, and since when; absent where it can, and from a bridge older than the nudge."
               }
             },
             "required": [
@@ -8550,6 +8804,10 @@
               "since": {
                 "type": "string",
                 "description": "When the session came to its condition."
+              },
+              "nudge": {
+                "type": "boolean",
+                "description": "Whether the bridge can nudge the agent at its prompt; false for a bridge older than the nudge."
               },
               "stopped_by": {
                 "oneOf": [
@@ -8594,15 +8852,66 @@
                   }
                 ],
                 "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
+              },
+              "unable": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "$ref": "#/components/schemas/MonitorReason"
+                  },
+                  "since": {
+                    "type": "string",
+                    "description": "Since when, by the bridge's clock."
+                  }
+                },
+                "required": [
+                  "reason",
+                  "since"
+                ],
+                "description": "Why the bridge cannot monitor the session's terminal or nudge its agent, where it cannot, and since when; absent where it can, and from a bridge older than the nudge."
               }
             },
             "required": [
               "monitored",
               "profile",
               "condition",
-              "since"
+              "since",
+              "nudge"
             ]
           }
+        ]
+      },
+      "NudgeState": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the bridge claimed the nudge, by the server's clock."
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$",
+            "description": "The nudge attempt's id, which its texts in the terminal carry."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "stopped",
+              "failed",
+              "sent"
+            ],
+            "description": "How the nudge ended: sent, the agent's host took the message; stopped by someone at the terminal; or failed."
+          },
+          "answered": {
+            "type": "boolean",
+            "description": "Whether the agent has checked in since. A sent nudge not answered is one the agent is not responding to."
+          }
+        },
+        "required": [
+          "at",
+          "id",
+          "outcome",
+          "answered"
         ]
       },
       "OpenAsks": {
@@ -8683,7 +8992,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",
@@ -8842,7 +9151,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",
@@ -8855,6 +9164,10 @@
           "monitor": {
             "$ref": "#/components/schemas/MonitorState",
             "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
+          },
+          "last_nudge": {
+            "$ref": "#/components/schemas/NudgeState",
+            "description": "The session's latest nudge whose outcome came; absent until one first does, so a nudge under way shows nothing until it settles."
           }
         },
         "required": [
@@ -8985,12 +9298,18 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "ignored": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "required": [
               "total",
               "unread",
-              "stranded"
+              "stranded",
+              "ignored"
             ]
           },
           "open_asks": {
@@ -9091,7 +9410,7 @@
         "properties": {
           "last_seen_at": {
             "type": "string",
-            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones; absent until it first does."
           },
           "quiet": {
             "type": "boolean",
@@ -9104,6 +9423,10 @@
           "monitor": {
             "$ref": "#/components/schemas/MonitorState",
             "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
+          },
+          "last_nudge": {
+            "$ref": "#/components/schemas/NudgeState",
+            "description": "The session's latest nudge whose outcome came; absent until one first does, so a nudge under way shows nothing until it settles."
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"
@@ -9243,7 +9566,16 @@
             "$ref": "#/components/schemas/ThreadPresence"
           },
           "stranded": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the session has not read a message of yours here and nothing will bring it there soon, as the agent_read filter's stranded says."
+          },
+          "ignored": {
+            "type": "boolean",
+            "description": "Whether the session's agent checked in without reading a message of yours here and the quiet time has passed with nothing more to bring it there, as the agent_read filter's ignored says; never true with stranded."
+          },
+          "nudged_since_unread": {
+            "type": "boolean",
+            "description": "Whether the session's latest nudge was claimed at or after the earliest message of yours here it has not read, so it is the nudge that message is waiting on; false where there is no such message or no nudge since it."
           }
         },
         "required": [
@@ -9301,7 +9633,7 @@
           "idle",
           "stopped"
         ],
-        "description": "working while you are doing something now, checking Agention as you go; idle while you have nothing left to do but wait, for the operator's answers, CI or a review, and you still check Agention; stopped once you stop checking Agention, so you will not see new messages until something starts you again. stopped needs an outcome."
+        "description": "working while you are doing something now, checking Agention as you go; idle while you have nothing left to do but wait, for the operator's answers, CI or a review, and you still check Agention, or, where register's answers is nudge, wait at your prompt for the bridge's nudge; stopped once you stop checking Agention, so you will not see new messages until something starts you again. stopped needs an outcome."
       },
       "WriteResult": {
         "type": "object",

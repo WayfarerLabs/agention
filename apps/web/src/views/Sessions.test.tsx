@@ -258,12 +258,12 @@ describe("the sessions view", () => {
         sessionSummary({
           open_asks: { count: 2, blocking_count: 1 },
           unread_updates: 3,
-          threads: { total: 4, unread: 2, stranded: 1 },
+          threads: { total: 4, unread: 2, stranded: 1, ignored: 2 },
         }),
         sessionSummary({
           session: "side",
           open_asks: { count: 1, blocking_count: 0 },
-          threads: { total: 1, unread: 1, stranded: 0 },
+          threads: { total: 1, unread: 1, stranded: 0, ignored: 0 },
         }),
       ]),
       agent("reviewer", [sessionSummary()]),
@@ -284,6 +284,7 @@ describe("the sessions view", () => {
       "/?status=open&agent=builder",
       "/?agent=builder",
       "/?agent_read=stranded&agent=builder",
+      "/?agent_read=ignored&agent=builder",
     ]);
     expect(within(bar(builder)).getAllByRole("button").at(-1)).toBe(options("builder"));
     // Its heading goes by the button's name alone.
@@ -291,12 +292,15 @@ describe("the sessions view", () => {
     expect(bar(builder).querySelectorAll(".flag.danger")).toHaveLength(1);
     expect(bar(builder).querySelector(".flag.attention")?.textContent).toMatch(/^3\b/);
     // Its threads are a link to them on the thread list, and its stranded
-    // threads a link to those.
+    // and ignored threads each a link to those.
     const threads = screen.getByRole("link", { name: "5 threads of builder" });
     expect(threads.getAttribute("href")).toBe("/?agent=builder");
     const stranded = screen.getByRole("link", { name: "1 stranded thread of builder" });
     expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&agent=builder");
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    const ignored = screen.getByRole("link", { name: "2 ignored threads of builder" });
+    expect(ignored.getAttribute("href")).toBe("/?agent_read=ignored&agent=builder");
+    expect(ignored.querySelector(".flag.warning")?.textContent).toMatch(/^2\b/);
     expect(screen.queryByRole("link", { name: /stranded threads? of reviewer$/ })).toBeNull();
     expect(builder.getAttribute("aria-expanded")).toBe("true");
     expect(fold("side", folded(builder))).toBeTruthy();
@@ -326,7 +330,7 @@ describe("the sessions view", () => {
           },
           open_asks: { count: 3, blocking_count: 2 },
           unread_updates: 2,
-          threads: { total: 4, unread: 1, stranded: 1 },
+          threads: { total: 4, unread: 1, stranded: 1, ignored: 1 },
         }),
         sessionSummary({ session: "review", status: { state: "idle", updated_at: time } }),
         sessionSummary({
@@ -374,6 +378,11 @@ describe("the sessions view", () => {
     expect(stranded.getAttribute("href")).toBe("/?agent_read=stranded&session=builder/main");
     expect(stranded.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
     expect(within(row("review")).queryByRole("link", { name: /stranded/ })).toBeNull();
+    // Its ignored threads likewise.
+    const ignored = within(main).getByRole("link", { name: "1 ignored thread of builder/main" });
+    expect(ignored.getAttribute("href")).toBe("/?agent_read=ignored&session=builder/main");
+    expect(ignored.querySelector(".flag.warning")?.textContent).toMatch(/^1\b/);
+    expect(within(row("review")).queryByRole("link", { name: /ignored/ })).toBeNull();
     const unread = within(main).getByTitle("1 unread").closest("a");
     expect(unread?.getAttribute("href")).toBe("/?unread=true&session=builder/main");
     expect(main.querySelectorAll(".flag.danger")).toHaveLength(1);
@@ -429,7 +438,7 @@ describe("the sessions view", () => {
       agent("builder", [
         sessionSummary({
           open_asks: { count: 1, blocking_count: 1 },
-          threads: { total: 2, unread: 1, stranded: 0 },
+          threads: { total: 2, unread: 1, stranded: 0, ignored: 0 },
         }),
       ]),
     ]);
@@ -597,7 +606,7 @@ describe("monitoring", () => {
           {
             ...watched("main", observed("at_prompt")),
             open_asks: { count: 1, blocking_count: 1 },
-            threads: { total: 2, unread: 0, stranded: 1 },
+            threads: { total: 2, unread: 0, stranded: 1, ignored: 0 },
           },
           watched("asking", observed("permission_prompt")),
         ]),
@@ -736,6 +745,110 @@ describe("monitoring", () => {
     }
   });
 
+  it("says what came of the latest nudge, with its id, in the warning's tone where it failed or has no check-in since", async () => {
+    const at = "2026-10-27T11:59:00.000Z";
+    const id = "3f9a0c1d2e4b";
+    const nudged = (
+      session: string,
+      last_nudge: { outcome: "sent" | "stopped" | "failed"; answered: boolean },
+    ) =>
+      sessionSummary({
+        session,
+        presence: {
+          ...connected({ ...observed("at_prompt"), nudge: true }),
+          last_nudge: { at, id, ...last_nudge },
+        },
+      });
+    await open([
+      agent("builder", [
+        nudged("answered", { outcome: "sent", answered: true }),
+        nudged("unresponsive", { outcome: "sent", answered: false }),
+        nudged("failed", { outcome: "failed", answered: true }),
+        nudged("stopped", { outcome: "stopped", answered: false }),
+        watched("main", observed("at_prompt")),
+      ]),
+    ]);
+    // It comes after what the terminal shows, before the agent's check-in.
+    const order = Array.from(line("answered").querySelectorAll("[class^='session-']")).map((each) =>
+      each.className.replace(/ warning$/, ""),
+    );
+    expect(order).toEqual([
+      "session-connection",
+      "session-condition",
+      "session-nudge",
+      "session-check-in",
+    ]);
+    const nudge = (session: string) => part(session, "nudge");
+    expect(nudge("answered")?.classList.contains("warning")).toBe(false);
+    expect(nudge("unresponsive")?.classList.contains("warning")).toBe(true);
+    expect(nudge("failed")?.classList.contains("warning")).toBe(true);
+    expect(nudge("stopped")?.classList.contains("warning")).toBe(false);
+    const outcomes = ["answered", "unresponsive", "failed", "stopped"];
+    expect(new Set(outcomes.map((each) => nudge(each)?.textContent)).size).toBe(4);
+    for (const each of outcomes) {
+      expect(nudge(each)?.querySelector(".code")?.textContent).toBe(id);
+    }
+    expect(nudge("main")).toBeNull();
+  });
+
+  it("says why a session cannot be monitored or nudged, with since when, in the warning's tone for nudge text left", async () => {
+    const since = "2026-10-27T11:58:00.000Z";
+    const unable = (session: string, reason: string, monitor: object = observed("at_prompt")) =>
+      sessionSummary({
+        session,
+        presence: connected({ ...monitor, unable: { reason, since } } as never),
+      });
+    await open([
+      agent("builder", [
+        unable("left", "nudge_text_left"),
+        unable("unreachable", "pane_unreachable", observed("unknown")),
+        unable("off", "nudge_off"),
+        unable("bare", "no_socket", { monitored: false }),
+        watched("main", observed("at_prompt")),
+      ]),
+    ]);
+    const shown = (session: string) => part(session, "unable");
+    expect(shown("left")?.classList.contains("warning")).toBe(true);
+    expect(shown("unreachable")?.classList.contains("warning")).toBe(false);
+    expect(shown("left")?.textContent).not.toBe(shown("unreachable")?.textContent);
+    for (const session of ["left", "unreachable"]) {
+      expect(shown(session)?.querySelector("time")?.getAttribute("datetime")).toBe(since);
+    }
+    // How a session was set up shows only unfolded.
+    expect(shown("off")).toBeNull();
+    expect(shown("bare")).toBeNull();
+    expect(shown("main")).toBeNull();
+    for (const session of ["off", "bare"]) {
+      serveLog([], 0, `/s/builder/${session}`);
+      fireEvent.click(fold(session));
+      expect(
+        row(session)
+          .querySelector(".session-can-nudge .session-unable time")
+          ?.getAttribute("datetime"),
+      ).toBe(since);
+    }
+  });
+
+  it("says whether its bridge can nudge the agent, unfolded", async () => {
+    await open([
+      agent("builder", [
+        watched("nudged", { ...observed("at_prompt"), nudge: true }),
+        watched("main", observed("at_prompt")),
+        watched("bare", { monitored: false }),
+      ]),
+    ]);
+    const canNudge = (session: string) => {
+      serveLog([], 0, `/s/builder/${session}`);
+      fireEvent.click(fold(session));
+      return row(session).querySelector(".session-can-nudge")?.textContent;
+    };
+    const [yes, no, none] = ["nudged", "main", "bare"].map(canNudge);
+    expect(yes).toBeDefined();
+    expect(no).toBeDefined();
+    expect(yes).not.toBe(no);
+    expect(none).toBeUndefined();
+  });
+
   it("names the profile its bridge reads the terminal with, unfolded", async () => {
     await open([
       agent("builder", [
@@ -787,7 +900,7 @@ describe("folded by group", () => {
     sessionSummary({
       session,
       ...(group === undefined ? {} : { group }),
-      threads: { total: threads, unread: 0, stranded: 0 },
+      threads: { total: threads, unread: 0, stranded: 0, ignored: 0 },
       ...more,
     });
   // builder has sessions in Billing, in archive and in no group; reviewer
@@ -796,14 +909,14 @@ describe("folded by group", () => {
     agent("builder", [
       sessionIn(billing, "main", 2, {
         unread_updates: 1,
-        threads: { total: 2, unread: 0, stranded: 1 },
+        threads: { total: 2, unread: 0, stranded: 1, ignored: 0 },
       }),
       sessionIn(undefined, "side", 3),
       sessionIn(archive, "old", 1),
     ]),
     agent("reviewer", [
       sessionIn(billing, "main", 1, {
-        threads: { total: 1, unread: 1, stranded: 0 },
+        threads: { total: 1, unread: 1, stranded: 0, ignored: 0 },
         open_asks: { count: 1, blocking_count: 1 },
       }),
     ]),

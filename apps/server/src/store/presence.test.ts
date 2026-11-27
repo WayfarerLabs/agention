@@ -6,7 +6,7 @@ import {
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { markRead } from "./marks.ts";
-import { connectedFor, seenStep } from "./presence.ts";
+import { connectedFor } from "./presence.ts";
 import { revokeRegistration } from "./registrations.ts";
 import { defaultQuietAfter } from "./store.ts";
 import { type Agent, Fixture, threadTarget } from "./test-fixture.ts";
@@ -41,35 +41,30 @@ const stamps = () =>
 const lastSeen = () => stamps().last_seen_at;
 
 describe("last seen", () => {
-  it("is stamped only when that moves it a minute or more", () => {
+  it("is stamped on every call, however soon after the last, a clock stepped back included", () => {
     expect(lastSeen()).toBeNull();
-    fixture.seen(agent);
-    const first = fixture.now;
-    expect(lastSeen()).toBe(first);
-    fixture.advance(seenStep - 1);
-    fixture.seen(agent);
-    expect(lastSeen()).toBe(first);
-    fixture.advance(1);
-    fixture.seen(agent);
-    expect(lastSeen()).toBe(first + seenStep);
+    for (const step of [0, 1, 1_000, -5 * 60_000]) {
+      fixture.advance(step);
+      fixture.seen(agent);
+      expect(lastSeen()).toBe(fixture.now);
+    }
   });
 
-  it("moves back with a clock stepped back, so it never holds still", () => {
+  it("is stamped on the first call after a message someone else wrote, however soon", () => {
     fixture.seen(agent);
-    fixture.advance(-5 * seenStep);
+    fixture.advance(1_000);
+    fixture.startThread(agent);
+    fixture.advance(1);
     fixture.seen(agent);
     expect(lastSeen()).toBe(fixture.now);
   });
 
-  it("keeps the version of the agent API the check-in came through, at once when it changes", () => {
+  it("keeps the version of the agent API each check-in came through", () => {
     fixture.seen(agent);
     expect(stamps()).toMatchObject({ last_seen_version: agentApi.version });
     fixture.advance(1_000);
     fixture.seen(agent, 4);
     expect(stamps()).toMatchObject({ last_seen_at: fixture.now, last_seen_version: 4 });
-    fixture.advance(1_000);
-    fixture.seen(agent, 4);
-    expect(stamps()).toMatchObject({ last_seen_at: fixture.now - 1_000, last_seen_version: 4 });
   });
 
   it("is stamped only while the registration is approved", () => {
@@ -89,7 +84,7 @@ describe("last seen", () => {
     fixture.advance(1_000);
     fixture.connect(agent);
     expect(stamps().background_at).toBe(fixture.now);
-    fixture.advance(-5 * seenStep);
+    fixture.advance(-5 * 60_000);
     fixture.connect(agent);
     expect(stamps().background_at).toBe(fixture.now);
   });
@@ -150,8 +145,7 @@ describe("quiet", () => {
     fixture.seen(agent);
     const seenAt = new Date(fixture.now).toISOString();
     expect(thread().presence).toMatchObject({ last_seen_at: seenAt, quiet: false });
-    // Quiet allows the minute a stamp may lag behind the latest call.
-    fixture.advance(defaultQuietAfter + seenStep);
+    fixture.advance(defaultQuietAfter);
     expect(thread().presence?.quiet).toBe(false);
     fixture.advance(1);
     expect(thread().presence).toMatchObject({ last_seen_at: seenAt, quiet: true });
@@ -161,19 +155,19 @@ describe("quiet", () => {
   });
 
   it("follows the server's threshold, and never holds for a session calling within it", () => {
-    const short = new Fixture({ quietAfter: seenStep });
+    const short = new Fixture({ quietAfter: 60_000 });
     try {
       const own = short.registerAgent("builder", "main");
       short.createThread(own);
       const quiet = () => short.thread(short.operator, threadTarget(own, 1)).thread.presence?.quiet;
-      // Calling every 59 seconds stamps every other call, and is never quiet.
+      // Calling every 59 seconds, it is never quiet.
       for (let call = 0; call < 10; call++) {
         short.seen(own);
         expect(quiet()).toBe(false);
         short.advance(59_000);
         expect(quiet()).toBe(false);
       }
-      short.advance(2 * seenStep);
+      short.advance(2 * 60_000);
       expect(quiet()).toBe(true);
     } finally {
       short.close();
@@ -185,6 +179,7 @@ describe("quiet", () => {
     const own = fixture.thread(agent.identity, target()).thread;
     expect(own).not.toHaveProperty("presence");
     expect(own).not.toHaveProperty("stranded");
+    expect(own).not.toHaveProperty("ignored");
   });
 });
 
@@ -229,7 +224,7 @@ describe("stranded", () => {
   it("holds an operator's message the session has not read while it is quiet", () => {
     expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([false, false, false]);
     expect(stranded()).toEqual([]);
-    fixture.advance(defaultQuietAfter + seenStep + 1);
+    fixture.advance(defaultQuietAfter + 1);
     // Its bridge is still connected; its agent has not checked in.
     fixture.connect(agent);
     expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
@@ -256,7 +251,7 @@ describe("stranded", () => {
     fixture.seen(agent, monitoringAgentApiVersion - 1);
     expect(thread(1).stranded).toBe(false);
     expect(stranded()).toEqual([]);
-    fixture.advance(defaultQuietAfter + seenStep + 1);
+    fixture.advance(defaultQuietAfter + 1);
     expect(stranded()).toEqual(["written to"]);
   });
 
@@ -265,7 +260,7 @@ describe("stranded", () => {
     expect([1, 2, 3].map((number) => thread(number).stranded)).toEqual([true, false, false]);
     expect(stranded()).toEqual(["written to"]);
     const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
-    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1, ignored: 0 });
     fixture.report(agent, { state: "working" });
     expect(stranded()).toEqual([]);
   });
@@ -275,6 +270,6 @@ describe("stranded", () => {
     expect(thread(1)).toMatchObject({ stranded: true, presence: { quiet: false } });
     expect(stranded()).toEqual(["written to"]);
     const counts = countThreads(fixture.store, fixture.operator, threadFilters.parse({}));
-    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1 });
+    expect(counts.agent_read).toEqual({ any: 3, unread: 1, stranded: 1, ignored: 0 });
   });
 });

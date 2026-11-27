@@ -74,10 +74,17 @@ export class Session {
 
   // register submits the session's key, or reports the state of its
   // registration if the server knows the key already, and answers with that
-  // state and what the agent should do next. It creates the key if there is
-  // none, and replaces it once the server says its registration can never be
-  // approved. It is the only call that creates or replaces a key.
-  async register(given: GivenNames, signal?: AbortSignal): Promise<object> {
+  // state and what the agent should do next. Once approved, the answer also
+  // says how answers reach the agent, as canNudge finds: by a nudge when the
+  // session can be nudged, and otherwise when it checks. It creates the key
+  // if there is none, and replaces it once the server says its registration
+  // can never be approved. It is the only call that creates or replaces a
+  // key.
+  async register(
+    given: GivenNames,
+    signal: AbortSignal | undefined,
+    canNudge: () => Promise<boolean>,
+  ): Promise<object> {
     const { names, keyFile } = this.#fix(given);
     let key = keyFile.read() ?? keyFile.create();
     let state = await this.#submit(key, names, signal);
@@ -102,10 +109,13 @@ export class Session {
     if (state.status !== "pending") {
       delete answer.expires_at;
     }
+    const answers =
+      state.status === "approved" ? ((await canNudge()) ? "nudge" : "check") : undefined;
     return {
       ...answer,
       ...(replaced === undefined ? {} : { replaced }),
-      message: this.#nextStep(names, state, replaced),
+      ...(answers === undefined ? {} : { answers }),
+      message: this.#nextStep(names, state, replaced, answers),
     };
   }
 
@@ -287,20 +297,32 @@ export class Session {
 
   // nextStep tells the agent what to do next, including the names that select
   // this session's key when it calls register again, which are the proposed
-  // ones even when the operator granted others.
-  #nextStep(names: SessionNames, state: RegistrationState, replaced?: RefusedStatus): string {
+  // ones even when the operator granted others, and once approved, how
+  // answers reach it.
+  #nextStep(
+    names: SessionNames,
+    state: RegistrationState,
+    replaced: RefusedStatus | undefined,
+    answers: "nudge" | "check" | undefined,
+  ): string {
     const again = `call register with agent "${names.agent}" and session "${names.session}"`;
     const why =
       replaced === undefined
         ? ""
         : `${refusals[replaced]}, so the bridge made a new key and registered it. `;
     if (state.status === "approved") {
-      return (
+      const registered =
         `${why}Registered as ${state.agent}/${state.session}, where every Agention tool now ` +
-        `acts; to come back to this session later, ${again}. Answers reach you only when you ` +
-        "check: check with message_wait as you work, and once your other work is done, keep " +
-        "checking while you have open asks or unread messages."
-      );
+        `acts; to come back to this session later, ${again}. `;
+      return answers === "nudge"
+        ? `${registered}Answers reach you by a nudge: when the operator writes and you have ` +
+            "not checked in since, the bridge submits a short message at your prompt telling " +
+            "you to check in. Check with message_wait as you work; once your other work is " +
+            "done, report idle and end your turn, with no waiter of your own. When a nudge " +
+            "comes, check in: read your unread threads and update your status."
+        : `${registered}Answers reach you only when you check: check with message_wait as you ` +
+            "work, and once your other work is done, keep checking while you have open asks " +
+            "or unread messages.";
     }
     if (state.status === "pending") {
       return (

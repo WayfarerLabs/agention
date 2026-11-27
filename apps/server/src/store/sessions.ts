@@ -325,12 +325,12 @@ const sessionOrder = `
 // registrations; its status, with the latest entry's note and when that entry
 // was written; how many of its log's entries the operator has not read; how
 // many of its threads they have not archived, with how many of those hold
-// messages they have not read and how many are stranded; and how many asks
-// are open in all its threads, with how many of those are blocking. The
-// operator can never archive a thread holding an ask open to them, as
-// archiveThread refuses, so the thread list shows every thread these asks are
-// in. The thread counts and the ask counts each come from one statement for
-// every session of the page.
+// messages they have not read, how many are stranded and how many ignored;
+// and how many asks are open in all its threads, with how many of those are
+// blocking. The operator can never archive a thread holding an ask open to
+// them, as archiveThread refuses, so the thread list shows every thread these
+// asks are in. The thread counts and the ask counts each come from one
+// statement for every session of the page.
 export function listSessions(store: Store, identity: Identity, query: SessionsQuery): SessionsPage {
   const { db } = store;
   const position =
@@ -357,7 +357,8 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
            SELECT s.id, s.agent_id, s.name, s.created_at, s.last_seen_at,
              ${quietOf("s")} AS quiet,
              ${connectedOf("s")} AS connected,
-             r.monitored, r.profile, r.condition, r.since, r.stopped_by, r.resets_at,
+             r.monitored, r.profile, r.condition, r.since, r.stopped_by, r.resets_at, r.nudge,
+             r.unable, r.unable_since, s.nudged_at, s.nudge_id, s.nudge_outcome,
              u.seq AS latest_seq, u.state, u.outcome, u.title, u.goal, u.percent, u.note,
              u.created_at AS updated_at,
              COALESCE(m.read_seq, 0) AS read_seq,
@@ -393,7 +394,8 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
           .prepare(
             `${threadsSeen("t.session_id IN (SELECT value FROM json_each(:session_ids))")}
              SELECT session_id, count(*) AS total, count(*) FILTER (WHERE unread > 0) AS unread,
-               count(*) FILTER (WHERE stranded) AS stranded
+               count(*) FILTER (WHERE stranded) AS stranded,
+               count(*) FILTER (WHERE ignored) AS ignored
              FROM seen WHERE NOT archived GROUP BY session_id`,
           )
           .all({ ...viewing, session_ids: sessionIds }) as {
@@ -401,10 +403,11 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
           total: number;
           unread: number;
           stranded: number;
+          ignored: number;
         }[]
       ).map((row) => [
         row.session_id,
-        { total: row.total, unread: row.unread, stranded: row.stranded },
+        { total: row.total, unread: row.unread, stranded: row.stranded, ignored: row.ignored },
       ]),
     );
     const asks = new Map(
@@ -461,7 +464,7 @@ export function listSessions(store: Store, identity: Identity, query: SessionsQu
             },
           }),
       unread_updates: (row.latest_seq ?? 0) - row.read_seq,
-      threads: threads.get(row.id) ?? { total: 0, unread: 0, stranded: 0 },
+      threads: threads.get(row.id) ?? { total: 0, unread: 0, stranded: 0, ignored: 0 },
       open_asks: asks.get(row.id) ?? { count: 0, blocking_count: 0 },
     });
     const last = page.rows.at(-1);

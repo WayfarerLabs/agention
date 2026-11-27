@@ -9,6 +9,7 @@
       "env_vars": [
         "AGENTION_CONNECT",
         "AGENTION_HARNESS_PROFILE",
+        "AGENTION_NUDGE",
         "AGENTION_TMUX_SOCKET",
         "AGENTION_URL",
         "AGENTWORKS_AGENT",

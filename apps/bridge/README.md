@@ -26,14 +26,15 @@ says what the harness must do, and pins both to a release:
 AGENTION_URL=https://agention.example.com npx -y @wayfarerlabs/agention-mcp
 ```
 
-| Setting                                           | Meaning                                                                                                         |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `AGENTION_URL`                                    | The Agention server's origin; required                                                                          |
-| `AGENTION_CONNECT`                                | A host and port, such as `127.0.0.1:8443`, to connect to in place of the origin's; optional                     |
-| `AGENTION_TMUX_SOCKET` or `--tmux-socket`         | The socket of the tmux server the session's agent host runs in, to [monitor its terminal][monitoring]; optional |
-| `AGENTION_HARNESS_PROFILE` or `--harness-profile` | How to read that terminal, `auto` by default                                                                    |
-| `--version`                                       | Prints the version                                                                                              |
-| `--help`                                          | Prints the usage                                                                                                |
+| Setting                                           | Meaning                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AGENTION_URL`                                    | The Agention server's origin; required                                                                                                     |
+| `AGENTION_CONNECT`                                | A host and port, such as `127.0.0.1:8443`, to connect to in place of the origin's; optional                                                |
+| `AGENTION_TMUX_SOCKET` or `--tmux-socket`         | The socket of the tmux server the session's agent host runs in, to [monitor its terminal][monitoring]; optional                            |
+| `AGENTION_HARNESS_PROFILE` or `--harness-profile` | How to read that terminal, `auto` by default                                                                                               |
+| `AGENTION_NUDGE` or `--nudge`                     | `tmux` to have the bridge [nudge the agent][nudge] at its prompt when you write to it, on a host with a profile of its own; off unless set |
+| `--version`                                       | Prints the version                                                                                                                         |
+| `--help`                                          | Prints the usage                                                                                                                           |
 
 `AGENTION_CONNECT` is the way to a server reached through a tunnel: the certificate the bridge
 checks, its requests and its tokens still name the origin. The bridge connects directly and takes no
@@ -44,6 +45,7 @@ you approve a new key with the code the agent relays to you.
 
 [monitoring]:
   https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#monitoring-a-sessions-terminal
+[nudge]: https://github.com/WayfarerLabs/agention/blob/main/docs/operator-guide.md#the-nudge
 
 ## More
 

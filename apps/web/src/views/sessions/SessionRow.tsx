@@ -1,4 +1,5 @@
 import type {
+  MonitorReason,
   SessionLog as SessionLogAnswer,
   SessionLogMark,
   SessionSummary,
@@ -19,6 +20,8 @@ import { Loadable, MenuItem, OptionsMenu } from "../../components.tsx";
 import { useFresh, useReading, useResource } from "../../data.ts";
 import {
   conditionWords,
+  nudgeNeedsYou,
+  nudgeWords,
   type Observed,
   observedOf,
   plural,
@@ -26,6 +29,8 @@ import {
   Spoken,
   Time,
   terminalNeedsYou,
+  unableOf,
+  unableReasonWords,
   workStateWords,
 } from "../../format.tsx";
 import { Icon, Mark } from "../../icons.tsx";
@@ -34,7 +39,7 @@ import { sessionNeedsYou } from "./arrangement.ts";
 import { type Change, type LogLine, logLines } from "./log.ts";
 import { GroupChip, TagChip } from "./GroupsAndTags.tsx";
 import { NeedsYouFlag, type ViewShown } from "./needs-you.tsx";
-import { OpenAsksLink, rollupOfSession, StrandedLink, ThreadsLink } from "./roll-ups.tsx";
+import { AgentReadLink, OpenAsksLink, rollupOfSession, ThreadsLink } from "./roll-ups.tsx";
 import { type Credential, Revocation } from "./Registrations.tsx";
 
 // One session in the sessions view: a folded row of three short lines, its
@@ -166,14 +171,21 @@ export function SessionRow({
 // is, as the server knows it, apart from what its agent reports: whether its
 // bridge is connected, which a bridge from before monitoring never says;
 // while it is, what its terminal shows and since when, where the bridge
-// monitors it; when its agent last checked in, or that it never did; and
-// how long ago its status was last updated, once it has one, since an agent
-// can keep checking in long after its status stopped saying what it does,
-// as in "Connected, at its prompt since 14:02 · last check-in 11:40 · status
-// updated 3 hours ago". What needs the operator takes the warning's tone: a
-// bridge not connected and a check-in long enough ago to be quiet, unless
-// the session has stopped, which its state says already, and a terminal
-// showing a prompt or something that stopped it.
+// monitors it; why it cannot be monitored or nudged, with since when, where
+// that is trouble rather than how the session was set up (no tmux socket or
+// the nudge off, which its unfolded detail says); what came of its latest
+// nudge, once its bridge tried one, with the attempt's id, which the
+// harness's transcript shows too; when its agent last checked in, or that it
+// never did; and how long ago its status was last updated, once it has one,
+// since an agent can keep checking in long after its status stopped saying
+// what it does, as in "Connected, at its prompt since 14:02 · nudged 14:05
+// (3f9a0c1d2e4b) · last check-in 14:05 · status updated 3 hours ago". What
+// needs the operator takes the warning's tone: a bridge not connected and a
+// check-in long enough ago to be quiet, unless the session has stopped,
+// which its state says already; a terminal showing a prompt or something
+// that stopped it; nudge text left at the prompt; and a nudge that failed,
+// or was sent with no check-in since. One stopped at the terminal reads
+// neutral, as the choice of whoever was there.
 function PresenceLine({ session }: { session: SessionSummary }) {
   const { presence, status } = session;
   const stopped = status?.state === "stopped";
@@ -194,6 +206,20 @@ function PresenceLine({ session }: { session: SessionSummary }) {
     parts.push(
       <span className={stopped ? "session-connection" : "session-connection warning"}>
         Not connected
+      </span>,
+    );
+  }
+  const unable = presence.connected === true ? presence.monitor?.unable : undefined;
+  if (unable !== undefined && unableOf(unable.reason).tone !== "setup") {
+    parts.push(<Unable unable={unable} />);
+  }
+  const nudge = presence.last_nudge;
+  if (nudge !== undefined) {
+    const words = nudgeWords(nudge);
+    parts.push(
+      <span className={nudgeNeedsYou(nudge) ? "session-nudge warning" : "session-nudge"}>
+        {parts.length > 0 ? words : `${words.charAt(0).toUpperCase()}${words.slice(1)}`} (
+        <span className="code small">{nudge.id}</span>)
       </span>,
     );
   }
@@ -232,6 +258,21 @@ function PresenceLine({ session }: { session: SessionSummary }) {
   );
 }
 
+// Unable says why a session's bridge cannot monitor or nudge, and since when,
+// as in "Can't be nudged: nudge text left at the prompt since 14:05", in the
+// warning's tone where that needs the operator.
+function Unable({ unable }: { unable: { reason: MonitorReason; since: string } }) {
+  return (
+    <span
+      className={
+        unableOf(unable.reason).tone === "trouble" ? "session-unable warning" : "session-unable"
+      }
+    >
+      {unableReasonWords(unable.reason)} since <Since value={unable.since} />
+    </span>
+  );
+}
+
 // Condition says what a session's terminal shows and since when, as in "at
 // its prompt since 14:02", in the warning's tone when it needs the operator.
 function Condition({ observed }: { observed: Observed }) {
@@ -251,10 +292,10 @@ function Condition({ observed }: { observed: Observed }) {
 // open ask blocks its work, linking to its blocked threads, and its open
 // asks, linking to its open threads; whether it has no credential; the
 // operator's group and tags for it, each linking to its threads; its
-// threads' roll-up, linking to them, and how many are stranded, linking to
-// those, but for blocked, which leads its open asks already, and the
-// envelope, linking to its unread threads; its unread updates; and its
-// latest note, cut to fit, which its log holds whole.
+// threads' roll-up, linking to them, and how many are stranded and how many
+// ignored, each linking to those, but for blocked, which leads its open asks
+// already, and the envelope, linking to its unread threads; its unread
+// updates; and its latest note, cut to fit, which its log holds whole.
 function SessionFacts({
   agent,
   session,
@@ -304,7 +345,12 @@ function SessionFacts({
       </li>
       {threads.stranded > 0 && (
         <li className="bare">
-          <StrandedLink stranded={threads.stranded} {...scope} />
+          <AgentReadLink read="stranded" count={threads.stranded} {...scope} />
+        </li>
+      )}
+      {threads.ignored > 0 && (
+        <li className="bare">
+          <AgentReadLink read="ignored" count={threads.ignored} {...scope} />
         </li>
       )}
       <li className="bare">
@@ -323,7 +369,8 @@ const stateTone = { working: "success", idle: "accent", stopped: undefined } as 
 
 // SessionDetail is what a session unfolds beneath its head: its goal whole,
 // with how far it has come, its credentials, how its connected bridge
-// monitors its terminal, once it has said, and its log.
+// monitors its terminal and whether it can nudge the agent there, or why it
+// cannot monitor or nudge and since when, once it has said, and its log.
 function SessionDetail({
   agent,
   session,
@@ -379,6 +426,17 @@ function SessionDetail({
               "Terminal not monitored"
             )}
           </li>
+        )}
+        {monitor?.unable !== undefined ? (
+          <li className="session-can-nudge">
+            <Unable unable={monitor.unable} />
+          </li>
+        ) : (
+          monitor?.monitored === true && (
+            <li className="session-can-nudge">
+              {monitor.nudge ? "Can be nudged" : "Cannot be nudged"}
+            </li>
+          )
         )}
       </ul>
       {status === undefined ? (

@@ -317,6 +317,30 @@ describe("the thread list", () => {
     }
   });
 
+  it("marks an ignored thread as such, not stranded, with when its agent checked in and what its terminal shows", async () => {
+    const seen = "2026-10-27T12:00:00.000Z";
+    const monitor = { ...observed("running"), nudge: true };
+    serve([
+      threadSummary({
+        number: 1,
+        title: "Passed over",
+        stranded: false,
+        ignored: true,
+        presence: { last_seen_at: seen, quiet: false, connected: true, monitor },
+      }),
+      threadSummary({ number: 2, title: "Read", stranded: false, ignored: false }),
+    ]);
+    renderAt("/");
+    await screen.findByText("Passed over");
+    const row = (name: string) => within(screen.getByRole("link", { name: new RegExp(name) }));
+    expect(row("Passed over").queryByText(/^Stranded/)).toBeNull();
+    const tag = row("Passed over").getByText(/^Ignored/);
+    expect(tag.textContent).toContain(sinceTime(seen));
+    expect(tag.textContent).toContain(conditionWords(monitor));
+    expect(tag.closest(".warning")).not.toBeNull();
+    expect(row("Read").queryByText(/^Ignored/)).toBeNull();
+  });
+
   it("counts every other open ask, not only those the summary lists", async () => {
     serve([
       threadSummary({
@@ -703,7 +727,7 @@ const counts: ThreadCounts = {
   overdue: { any: 27, overdue: 3 },
   effort: { any: 26, quick: 2, under_15m: 11, under_1h: 12 },
   unread: { any: 25, unread: 13 },
-  agent_read: { any: 24, unread: 14, stranded: 37 },
+  agent_read: { any: 24, unread: 14, stranded: 37, ignored: 38 },
   include_archived: { hide: 23, show: 33 },
   agent: {
     agents: [
@@ -822,6 +846,7 @@ describe("the filter sheet", () => {
     ["Read", "Unread", "unread=true", ["unread", "true"]],
     ["Read by agent", "Unread", "agent_read=unread", ["agent_read", "unread"]],
     ["Read by agent", "Stranded", "agent_read=stranded", ["agent_read", "stranded"]],
+    ["Read by agent", "Ignored", "agent_read=ignored", ["agent_read", "ignored"]],
     ["Archived", "Show", "include_archived=true", ["include_archived", "true"]],
   ] as const)(
     "sets %s to %s, updating the list behind it",
@@ -868,12 +893,15 @@ describe("the filter sheet", () => {
     expect(checked("Status")).toContain("Open");
   });
 
-  it("takes one of Unread and Stranded for Read by agent", async () => {
+  it("takes one of Unread, Stranded and Ignored for Read by agent", async () => {
     serve([]);
     renderAt("/?agent_read=unread");
     await openSheet();
     fireEvent.click(segment("Read by agent", "Stranded"));
     await waitFor(() => expect(address()).toBe("?agent_read=stranded"));
+    fireEvent.click(segment("Read by agent", "Ignored"));
+    await waitFor(() => expect(address()).toBe("?agent_read=ignored"));
+    expect(segment("Read by agent", "Stranded").checked).toBe(false);
     fireEvent.click(segment("Read by agent", "Unread"));
     await waitFor(() => expect(address()).toBe("?agent_read=unread"));
   });
@@ -905,6 +933,7 @@ describe("the filter sheet", () => {
     expect(name("Read", "Unread")).toBe("Unread");
     expect(segment("Read by agent", "Unread").closest("label")?.textContent).toContain("(14)");
     expect(segment("Read by agent", "Stranded").closest("label")?.textContent).toContain("(37)");
+    expect(segment("Read by agent", "Ignored").closest("label")?.textContent).toContain("(38)");
     expect(segment("Status", "Withdrawn").closest("label")?.textContent).toContain("(35)");
     expect(segment("Status", "No asks").closest("label")?.textContent).toContain("(36)");
     expect(segment("Effort", "Under 15 minutes").closest("label")?.textContent).toContain("(11)");
@@ -1594,6 +1623,16 @@ describe("the head's search field", () => {
 });
 
 describe("the chips", () => {
+  it("show the ignored filter as a chip of its own, which removes it", async () => {
+    serve([]);
+    renderAt("/?agent_read=ignored");
+    await screen.findByRole("heading", { level: 1 });
+    expect(chips()).toHaveLength(1);
+    fireEvent.click(chips()[0] as HTMLElement);
+    await waitFor(() => expect(address()).toBe(""));
+    expect(chips()).toEqual([]);
+  });
+
   it("show each filter that is on, each removing its own, with a badge counting them", async () => {
     serve([]);
     // Every filter on, in the order the sheet gives them, an order and a

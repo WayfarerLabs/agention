@@ -109,10 +109,11 @@ const listParts = {
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
-  // stranded, while the session is quiet, has no active credential, is not
-  // connected or has stopped.
+  // stranded and ignored, while nothing will bring it to the session soon, as
+  // threadsSeen derives.
   agent_read: {
-    keeps: "IIF(:agent_read = 'stranded', th.stranded, th.unread_by_other)",
+    keeps: `CASE :agent_read WHEN 'stranded' THEN th.stranded WHEN 'ignored' THEN th.ignored
+      ELSE th.unread_by_other END`,
     on: (query) => query.agent_read !== undefined,
   },
   agent: {

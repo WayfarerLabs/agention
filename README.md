@@ -23,8 +23,10 @@ or your desk. They read your answers and carry on.
 </picture>
 
 - **Agents ask, and keep working.** An ask says what it blocks, how urgent it is and how long
-  answering takes, and offers suggested answers. The agent never sits at a prompt: it carries on
-  with whatever your answer does not block, and keeps checking for it.
+  answering takes, and offers suggested answers. The agent carries on with whatever your answer does
+  not block, and keeps checking for it. Unless you turn on the
+  [nudge](docs/operator-guide.md#the-nudge), it never sits at a prompt; with it, an agent with
+  nothing left to do waits at its prompt, and its bridge nudges it there when you write.
 - **You answer in seconds.** Pick a suggestion or write your own words, or dictate them once you set
   up voice. The detail, diagrams and files an agent attached are a tap away.
 - **Any harness.** Agents reach Agention through a small local MCP server, so Claude Code, Codex and
@@ -96,7 +98,8 @@ The [operator guide](docs/operator-guide.md) covers the rest: Codex, pinning the
 Agention records and shows. The agent decides what to do with an answer.
 
 - It grants no permissions, and it does not reach into an agent's session: agents come to it and
-  check for your answers.
+  check for your answers. The one exception is the nudge, off until you turn it on: the bridge then
+  submits one fixed message at an agent's prompt, telling it to check in, when you write to it.
 - It never holds up an agent's work, and never acts on a deadline.
 - It sends no notifications or email. You look when you choose to.
 

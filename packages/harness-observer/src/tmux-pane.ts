@@ -1,10 +1,9 @@
 import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
-import { type Pane, PaneUnusable, type Snapshot } from "./pane.ts";
-
-const run = promisify(execFile);
+import { readAttributedRows } from "./attributed-rows.ts";
+import { type Key, type Pane, PaneUnusable, refusePaste, type Snapshot } from "./pane.ts";
 
 export interface TmuxPaneOptions {
   // The tmux command, found on PATH unless it is a path; "tmux" by default.
@@ -26,7 +25,12 @@ const paneFormats = [
   "cursor_x",
   "cursor_y",
   "cursor_flag",
+  "pane_in_mode",
+  "pane_input_off",
 ];
+
+// tmux's names for the keys a pane sends.
+const keyNames: Record<Key, string> = { Backspace: "BSpace", Enter: "Enter" };
 
 // The line that ends what tmux itself prints and starts the screen. Nothing
 // before it can be this line, so the screen cannot imitate the fields above.
@@ -36,10 +40,10 @@ const screenStart = "screen";
 // any real tree is deep, so a tree that changes as it is read still ends.
 const deepest = 256;
 
-// TmuxPane reads the one pane of the tmux server at a socket path. It runs
-// the tmux client directly, never through a shell, and without TMUX or
-// TMUX_PANE, so a tmux the caller happens to run in never picks the pane: the
-// socket is the caller's to name.
+// TmuxPane reads and writes the one pane of the tmux server at a socket
+// path. It runs the tmux client directly, never through a shell, and without
+// TMUX or TMUX_PANE, so a tmux the caller happens to run in never picks the
+// pane: the socket is the caller's to name.
 export class TmuxPane implements Pane {
   readonly #socket: string;
   readonly #tmux: string;
@@ -69,18 +73,23 @@ export class TmuxPane implements Pane {
       "-F",
       "pane",
       ";",
+      "list-clients",
+      "-F",
+      "client #{client_activity}",
+      ";",
       "display-message",
       "-p",
       screenStart,
       ";",
       "capture-pane",
       "-p",
+      "-e",
     ]);
     const at = Date.now();
     const output = stdout.endsWith("\n") ? stdout.slice(0, -1).split("\n") : stdout.split("\n");
     const start = output.indexOf(screenStart);
     const first = output[0] ?? "";
-    const fields = /^(\d+) ([01]) (\d+) (\d+) (\d+) (\d+) ([01])$/.exec(first);
+    const fields = /^(\d+) ([01]) (\d+) (\d+) (\d+) (\d+) ([01]) ([01]) ([01])$/.exec(first);
     const parts = first.split(" ");
     // tmux's CHANGES names none of these formats as new in 3.3, so 3.3 is the
     // floor only as the oldest version tested, and this check guards against
@@ -91,23 +100,26 @@ export class TmuxPane implements Pane {
     if (fields === null || start < 0) {
       throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);
     }
-    const [pid, dead, width, height, x, y, visible] = fields.slice(1).map(Number) as [
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-    ];
+    const [pid, dead, width, height, x, y, visible, inMode, inputOff] = fields
+      .slice(1)
+      .map(Number) as [number, number, number, number, number, number, number, number, number];
     let panes = 0;
+    // tmux gives a client's activity to the second, so a key it names came
+    // at the end of that second at the latest.
+    let lastTyped: number | undefined;
     for (const line of output.slice(1, start)) {
-      if (line !== "pane") {
+      const client = /^client (\d+)$/.exec(line);
+      if (client !== null) {
+        lastTyped = Math.max(lastTyped ?? 0, Number(client[1]) * 1000 + 999);
+      } else if (line === "pane") {
+        panes++;
+      } else {
         throw new Error(`tmux at ${this.#socket} printed an unexpected reading`);
       }
-      panes++;
     }
-    const lines = output.slice(start + 1, start + 1 + height);
+    // The screen comes with its attributes, so faint text, as a harness
+    // draws a hint, tells from typed text.
+    const { lines, faint } = readAttributedRows(output.slice(start + 1, start + 1 + height));
     while (lines.length < height) {
       lines.push("");
     }
@@ -120,32 +132,58 @@ export class TmuxPane implements Pane {
     }
     return {
       lines,
+      faint,
       width,
       cursor: { x, y, visible: visible === 1 },
       hostHasTerminal,
       onePane: panes === 1,
+      keysBlocked: inMode === 1 || inputOff === 1,
+      lastTyped,
       at,
     };
   }
 
-  // run runs one tmux client call on the socket and returns what it printed.
-  // An error carries what tmux said, which names the socket, never the pane's
-  // text.
-  async #run(args: readonly string[]): Promise<string> {
-    try {
-      const { TMUX: _tmux, TMUX_PANE: _pane, ...env } = process.env;
-      const { stdout } = await run(this.#tmux, ["-S", this.#socket, ...args], {
-        env,
-        encoding: "utf8",
-        timeout: 5000,
-        maxBuffer: 4 * 1024 * 1024,
-      });
-      return stdout;
-    } catch (error) {
-      const said = (error as { stderr?: unknown }).stderr;
-      const reason = typeof said === "string" && said.trim() !== "" ? said.trim() : String(error);
-      throw new Error(`tmux at ${this.#socket} failed: ${reason}`, { cause: error });
-    }
+  // paste pastes one line through a buffer of its own, which it loads from
+  // the tmux client's input rather than its arguments, since tmux reads an
+  // argument ending in ";" as the end of a command, and deletes once pasted,
+  // so the operator's buffers are never read, replaced or reordered.
+  async paste(line: string): Promise<void> {
+    refusePaste(line);
+    const buffer = `harness-observer-${randomBytes(8).toString("hex")}`;
+    await this.#run(
+      ["load-buffer", "-b", buffer, "-", ";", "paste-buffer", "-p", "-d", "-b", buffer],
+      line,
+    );
+  }
+
+  async key(key: Key): Promise<void> {
+    await this.#run(["send-keys", keyNames[key]]);
+  }
+
+  // run runs one tmux client call on the socket, with input for the
+  // client's standard input if any, and returns what it printed. An error
+  // carries what tmux said, which names the socket, never the pane's text.
+  async #run(args: readonly string[], input?: string): Promise<string> {
+    const { TMUX: _tmux, TMUX_PANE: _pane, ...env } = process.env;
+    return new Promise((resolve, reject) => {
+      const child = execFile(
+        this.#tmux,
+        ["-S", this.#socket, ...args],
+        { env, encoding: "utf8", timeout: 5000, maxBuffer: 4 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error === null) {
+            resolve(stdout);
+            return;
+          }
+          const reason = stderr.trim() !== "" ? stderr.trim() : String(error);
+          reject(new Error(`tmux at ${this.#socket} failed: ${reason}`, { cause: error }));
+        },
+      );
+      // A client that ends before reading its input closes the pipe, which
+      // the callback reports; the stream's own error says nothing more.
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(input ?? "");
+    });
   }
 
   // requireAncestor rejects unless the pane's first process is an ancestor of

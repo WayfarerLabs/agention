@@ -85,7 +85,23 @@ disagreement is the finding.
   keeping a file. The bridge at the head against a server of an earlier release, which it refuses
   with what the operator upgrades, and a bridge an earlier release published against the server at
   the head, which it still serves, where the charter names those releases; the agent compatibility
-  gate covers the latter on every change (`CONTRIBUTING.md` "The agent API").
+  gate covers the latter on every change (`CONTRIBUTING.md` "The agent API"). The nudge, with
+  `AGENTION_NUDGE=tmux` and a socket of the run's own tmux server: `register`'s `answers` once
+  approved, with the nudge on and off and with a generic profile, which is never nudged; an agent at
+  its prompt nudged when the operator writes to it, checking in and updating its status, with the
+  attempt's id in the host's transcript and on the session's latest nudge; a nudge refused at a
+  permission dialog and while someone types, stopped at the terminal when the operator types over
+  its warning, deferred without a failure when something else on the screen changes while the
+  warning stands, and failed, left in the input, in Claude Code's vim normal mode; nudge text left
+  at the prompt holding the nudge off, shown on the session, until it is cleared; a pane made
+  unreachable after the bridge started, shown on the session as it happens; a bridge restarted, or a
+  second one started, in the middle of a nudge, with no second nudge before the agent checks in; a
+  session whose nudge went unanswered shown as not responding; and a thread whose agent checked in
+  after the nudge without reading it ignored, not stranded, once the quiet time passes, saying so,
+  listed by the Ignored filter and counted in the sessions view, and waiting on a new nudge,
+  neither, when the operator then writes to it or another thread of the session, stranded, not
+  ignored, if that nudge is not sent within the quiet time, and at once if it fails or is stopped
+  (`docs/operator-guide.md` "The nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
@@ -133,18 +149,19 @@ disagreement is the finding.
   and the full ones by touch, a touchscreen laptop among them; the Threads tab side by side at a
   desktop's width, filling it, the list kept as chosen beside each thread opened, the open thread's
   row marked, Back from thread to thread, focus back on the row left, and one at a time below that
-  width; stranded's reasons, in the warning's color in both tabs; the sessions view, its group and
-  agent folds and folded rows with what each session reports, whether its bridge is connected and
-  what its terminal shows, apart from what it reports, its agent's last check-in and whether it is
-  quiet, how old its status is, the Needs you flag on a session at a prompt or stopped by something,
-  its header's count and the filter they turn on, its chip turning it off, its open asks in the
-  thread list's words and its threads' roll-up, the links from a row, an agent and a group, their
-  names and every chip standing for threads among them, to the thread list filtered to them, folding
-  nothing, and from a row's and an agent's stranded flag to their stranded threads, a row unfolded
-  to its log and marking it read, the Sessions tab's count of registrations waiting falling as they
-  are approved or rejected, their section one line while none waits, the Threads tab's count of
-  unread threads falling as they are read or archived, and the folds kept, on a phone's width too;
-  the operator's session groups and tags: a session's group and an agent's and a session's tags
+  width; stranded's and ignored's reasons, in the warning's color in both tabs; the sessions view,
+  its group and agent folds and folded rows with what each session reports, whether its bridge is
+  connected and what its terminal shows, apart from what it reports, its agent's last check-in and
+  whether it is quiet, how old its status is, what came of its latest nudge, unfolded whether it can
+  be nudged, the Needs you flag on a session at a prompt or stopped by something, its header's count
+  and the filter they turn on, its chip turning it off, its open asks in the thread list's words and
+  its threads' roll-up, the links from a row, an agent and a group, their names and every chip
+  standing for threads among them, to the thread list filtered to them, folding nothing, and from a
+  row's and an agent's stranded and ignored flags to their stranded and ignored threads, a row
+  unfolded to its log and marking it read, the Sessions tab's count of registrations waiting falling
+  as they are approved or rejected, their section one line while none waits, the Threads tab's count
+  of unread threads falling as they are read or archived, and the folds kept, on a phone's width
+  too; the operator's session groups and tags: a session's group and an agent's and a session's tags
   picked from their options, each pick applied at once, by pointer and by the keys, the pickers
   beside the menu on a wide screen and as a sheet on a phone, the chips that show them in their
   colors in both color schemes, and Settings' groups and tags, with create, rename, its refusal of a
@@ -233,11 +250,16 @@ On top of the method's failure classes, look for:
   tab's count against the list's total with Unread the only filter on, the Sessions tab's count
   against the registrations waiting for approval, a filter value's count against the list that value
   produces, a group's roll-up against the threads it holds and the list its link opens, a stranded
-  count in the sessions view against the list its link opens, a session flagged Needs you or a
-  stranded thread's condition against the session's terminal, a header's Needs you count against the
-  sessions its filter lists, a tag on an agent against the threads of each of its sessions, an
-  archived thread that another party's later message failed to bring back to the list, and one the
-  caller's own message brought back.
+  or ignored count in the sessions view against the list its link opens, a session flagged Needs you
+  or a stranded thread's condition against the session's terminal, a header's Needs you count
+  against the sessions its filter lists, a session nudged more than once between its agent's
+  check-ins, across a takeover or a restart included, a draft at the prompt submitted with the
+  nudge's message, a nudge shown not responding after the agent checked in, a thread on a session
+  that can be nudged stranded while the nudge is still to come, a thread both stranded and ignored,
+  or ignored while it waits on a nudge due, or not ignored, or nudged again, once the quiet time has
+  passed since a nudge the agent checked in after without reading the thread, a tag on an agent
+  against the threads of each of its sessions, an archived thread that another party's later message
+  failed to bring back to the list, and one the caller's own message brought back.
 - **Residue**: a refused key still on disk after the `register` that replaced it, temporary key
   files beside `key.pem`, an expired pending registration that survives the next write to the
   registrations table, browser sessions that outlive a passkey link or the passkey that signed them
@@ -279,8 +301,9 @@ On top of the method's failure classes, look for:
   default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
   an upload cut off, or the server killed during one, leaving no file or chunks after the next
   sweep; a `file_get` that fails leaving no partial file.
-- **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
-  between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
+- **Environment masking**: the Agentworks variables present or absent, as on Agentworks, the first
+  execution platform, or on any other, a different umask, clock skew between bridge and server,
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
   origin, a skewed clock), a long poll that outlives its ceiling, a code that is hard to read aloud.
 
@@ -295,11 +318,12 @@ On top of the method's safety rails:
 - Never run a `tailscale` command: on the live instance behind `tailscale serve`, the operator runs
   every one.
 - Start every host and bridge with `AGENTION_URL`, `AGENTION_CONNECT`, `AGENTION_TMUX_SOCKET`,
-  `AGENTION_HARNESS_PROFILE`, `NODE_EXTRA_CA_CERTS`, `AGENTWORKS_AGENT`, and `AGENTWORKS_SESSION`
-  set for the run (the Agentworks pair from the tester's namespace, or unset; `AGENTION_CONNECT` and
-  the monitoring pair empty unless the run tests them, and a tmux socket only of a server the run
-  started), never inherited, so nothing registers, signs, or stores a key as the operator's real
-  session, connects through the operator's tunnel, or reads the operator's terminal.
+  `AGENTION_HARNESS_PROFILE`, `AGENTION_NUDGE`, `NODE_EXTRA_CA_CERTS`, `AGENTWORKS_AGENT`, and
+  `AGENTWORKS_SESSION` set for the run (the Agentworks pair from the tester's namespace, or unset;
+  `AGENTION_CONNECT`, the monitoring pair and the nudge empty unless the run tests them, and a tmux
+  socket only of a server the run started), never inherited, so nothing registers, signs, or stores
+  a key as the operator's real session, connects through the operator's tunnel, or reads or types
+  into the operator's terminal.
 - Write nothing to shared `/tmp`: set `TMPDIR` to the run's scratch directory for every process the
   run starts, and put tarballs, renders, and certificates there too.
 - The bridge's key path and its fetched files' directory are fixed under the home directory, so use

@@ -1746,9 +1746,9 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   font-weight: 600;
 }
 
-/* A header's links to the threads it rolls up and to the stranded among
-   them, as in the sessions view, each kept on one line. */
-.fold-end > :is(.threads-link, .stranded-link) {
+/* A header's links to the threads it rolls up and to the stranded and the
+   ignored among them, as in the sessions view, each kept on one line. */
+.fold-end > :is(.threads-link, .agent-read-link) {
   flex: none;
   white-space: nowrap;
 }
@@ -1785,10 +1785,10 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   background: var(--color-surface-2);
 }
 
-/* A settled thread's status, and why a stranded thread's session has not
-   read it, muted, under where the thread is. */
+/* A settled thread's status, and why a stranded or ignored thread's session
+   has not read it, muted, under where the thread is. */
 .thread-header .thread-status,
-.thread-header .stranded {
+.thread-header .why-unread {
   margin: 0 0 var(--space-2);
   font-size: var(--text-small);
 }

@@ -2,7 +2,14 @@ import { z } from "zod";
 import { branchLink, pullRequestLink } from "./code-links.ts";
 import { errorBody } from "./errors.ts";
 import { groupRef } from "./groups-and-tags.ts";
-import { monitorCondition, monitorProfile, monitorReport, monitorState } from "./monitoring.ts";
+import {
+  monitorCondition,
+  monitorProfile,
+  monitorReason,
+  monitorReport,
+  monitorState,
+  nudgeState,
+} from "./monitoring.ts";
 import { reference } from "./references.ts";
 import { registration } from "./registrations.ts";
 import {
@@ -68,8 +75,10 @@ const named: Record<string, ApiSchema> = {
   message,
   monitorCondition,
   monitorProfile,
+  monitorReason,
   monitorReport,
   monitorState,
+  nudgeState,
   openAsks,
   presence,
   priority,

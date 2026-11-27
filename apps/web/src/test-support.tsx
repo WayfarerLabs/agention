@@ -64,7 +64,7 @@ export const noCounts: ThreadCounts = {
   overdue: { any: 0, overdue: 0 },
   effort: { any: 0, quick: 0, under_15m: 0, under_1h: 0 },
   unread: { any: 0, unread: 0 },
-  agent_read: { any: 0, unread: 0, stranded: 0 },
+  agent_read: { any: 0, unread: 0, stranded: 0, ignored: 0 },
   include_archived: { hide: 0, show: 0 },
   agent: { agents: [], truncated: false },
   session: { sessions: [], truncated: false },
@@ -315,6 +315,7 @@ export function threadSummary(overrides: Partial<ThreadSummary> = {}): ThreadSum
     credential_active: true,
     presence: { last_seen_at: time, quiet: false },
     stranded: false,
+    ignored: false,
     ...overrides,
   };
 }
@@ -402,13 +403,15 @@ export function registration(overrides: Partial<Registration> = {}): Registratio
 
 // What a session's bridge observed of its terminal, as the operator API
 // shows it: the condition, since a few minutes before the fixtures' time,
-// read with the Codex profile, with what stopped it when given.
+// read with the Codex profile, with what stopped it when given, and a
+// session that cannot be nudged.
 export function observed(condition: MonitorCondition, stopped?: Observed["stopped_by"]): Observed {
   return {
     monitored: true,
     profile: "codex",
     condition,
     since: "2026-10-27T11:58:00.000Z",
+    nudge: false,
     ...(stopped === undefined ? {} : { stopped_by: stopped }),
   };
 }
@@ -423,7 +426,7 @@ export function sessionSummary(overrides: Partial<SessionSummary> = {}): Session
     presence: { last_seen_at: time, quiet: false },
     registrations: [{ id: 1, code: "7KQ2M-X9DPA" }],
     unread_updates: 0,
-    threads: { total: 0, unread: 0, stranded: 0 },
+    threads: { total: 0, unread: 0, stranded: 0, ignored: 0 },
     open_asks: { count: 0, blocking_count: 0 },
     ...overrides,
   };

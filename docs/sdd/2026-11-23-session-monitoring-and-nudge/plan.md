@@ -96,13 +96,15 @@
       nudge's ADR, superseding ADR 0001's "No push" for agents and amending "No permissions, no
       harness control"; review checklist A1 and A6; and the rest of E1. Done when the drift check
       passes and the project review finds none stale.
-- [ ] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
+- [x] Renumbered as 1a was: the nudge is agent API version 9 and migration 12. Done when the gates
       pass on the pull request brought up to date with main.
-- [ ] M6's ignored status (ruling 8): a thread whose agent checked in at or after the operator's
+- [x] M6's ignored status (ruling 8): a thread whose agent checked in at or after the operator's
       earliest unread message without reading it, the quiet time past, is ignored rather than
       stranded, on the operator API's thread summary, agent-read filter and session counts and in
       the web UI. Done when the store's, HTTP and web tests show such a thread ignored and not
       stranded, and neither once the agent reads it.
+- [x] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
+      when the pull request records the live evidence as `docs/live-testing.md` describes.
 - [ ] Ruling 9's nudge: both texts carry N2's marker and an attempt id, which the claim records and
       the operator sees on the latest nudge; each attempt ends deferred, stopped, failed or sent
       (N6), a deferred one releasing its claim and the warning's check comparing only the input
@@ -117,8 +119,11 @@
       the operator nor read as sent, and both settlements.
 - [ ] Permanent docs name Agentworks as the first execution platform, never an assumption (CF3,
       ruling 9). Done when the project review finds none that assumes it.
-- [ ] Live on the same bed on Claude Code and Codex: the nudge cases of the definition of done. Done
-      when the pull request records the live evidence as `docs/live-testing.md` describes.
+- [ ] Live again on the same bed on Claude Code and Codex, for ruling 9's cases of the definition of
+      done: the attempt id in the transcript and on the latest nudge, a typed-over warning reading
+      as stopped at the terminal, and nudge text left at the prompt holding the nudge off until
+      cleared. Done when the pull request records the live evidence as `docs/live-testing.md`
+      describes.
 - [ ] The release lines split: the first releases on both lines are out before this stack merges
       (C1, ruling 9). Done when they are, and the stack is brought up to date with main on top of
       them.
