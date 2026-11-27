@@ -9,12 +9,12 @@ import { z } from "zod";
 // before a field goes missing unnoticed. Every change to the agent contract
 // bumps version by one (CONTRIBUTING.md "The agent API"); oldest moves only by
 // a maintainer's decision.
-export const agentApi = { version: 7, oldest: 1 } as const;
+export const agentApi = { version: 8, oldest: 1 } as const;
 
-// The versions that added fields to the agent's answers. An answer to a
-// request stating an older version leaves out every field added after it, so
-// a bridge never reads, or has to fit within its answer cap, a field it does
-// not know.
+// The versions the server branches on. Most added fields to the agent's
+// answers: an answer to a request stating an older version leaves out every
+// field added after it, so a bridge never reads, or has to fit within its
+// answer cap, a field it does not know.
 
 // The first version whose messages carry pull_requests and branches, and whose
 // thread reads carry the thread's roll-up of them.
@@ -23,6 +23,13 @@ export const codeLinksAgentApiVersion = 6;
 // The first version whose thread summaries carry links, which counts the pull
 // requests and branches the thread's live messages name.
 export const summaryLinksAgentApiVersion = 7;
+
+// The first version whose bridges make background requests, the monitoring
+// poll and report, and so report whether they are connected. It added no field
+// to an answer: a session whose agent last checked in through an older bridge,
+// while no bridge is connected, follows the rule of the bridges before it and
+// is never shown disconnected.
+export const monitoringAgentApiVersion = 8;
 
 export const agentApiHeader = "Agention-Agent-API";
 

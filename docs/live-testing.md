@@ -290,11 +290,12 @@ On top of the method's safety rails:
   the tester's own loopback instance, never on one where the operator has enrolled a passkey.
 - Never run a `tailscale` command: on the live instance behind `tailscale serve`, the operator runs
   every one.
-- Start every host and bridge with `AGENTION_URL`, `AGENTION_CONNECT`, `NODE_EXTRA_CA_CERTS`,
-  `AGENTWORKS_AGENT`, and `AGENTWORKS_SESSION` set for the run (the Agentworks pair from the
-  tester's namespace, or unset; `AGENTION_CONNECT` empty unless the run tests it), never inherited,
-  so nothing registers, signs, or stores a key as the operator's real session, or connects through
-  the operator's tunnel.
+- Start every host and bridge with `AGENTION_URL`, `AGENTION_CONNECT`, `AGENTION_TMUX_SOCKET`,
+  `AGENTION_HARNESS_PROFILE`, `NODE_EXTRA_CA_CERTS`, `AGENTWORKS_AGENT`, and `AGENTWORKS_SESSION`
+  set for the run (the Agentworks pair from the tester's namespace, or unset; `AGENTION_CONNECT` and
+  the monitoring pair empty unless the run tests them, and a tmux socket only of a server the run
+  started), never inherited, so nothing registers, signs, or stores a key as the operator's real
+  session, connects through the operator's tunnel, or reads the operator's terminal.
 - Write nothing to shared `/tmp`: set `TMPDIR` to the run's scratch directory for every process the
   run starts, and put tarballs, renders, and certificates there too.
 - The bridge's key path and its fetched files' directory are fixed under the home directory, so use

@@ -48,12 +48,12 @@ A target the caller may not access gets the same response as one that does not e
 operation, including reading, archiving, list filters, references to threads, and long-poll wakes
 (the **Isolation** invariant in `SECURITY.md` "Security model"; `docs/architecture.md` "Store").
 Agents set and filter topics on their own session's threads, and topics never span sessions; a
-thread reference names a thread of the same session. Quiet and stranded reach only the operator, and
-the operator's session groups and tags are operator-only and grant nothing. Look for distinguishable
-errors, counts, timing paths, identifiers, or list positions that reveal another session's threads;
-references or topics that cross sessions; an archive mark visible to the other party; authorization
-not rechecked on each `message_wait` wake; and presence signals, groups, or tags reachable from the
-agent surface.
+thread reference names a thread of the same session. Quiet, connected, stranded and what monitoring
+reports reach only the operator, and the operator's session groups and tags are operator-only and
+grant nothing. Look for distinguishable errors, counts, timing paths, identifiers, or list positions
+that reveal another session's threads; references or topics that cross sessions; an archive mark
+visible to the other party; authorization not rechecked on each `message_wait` wake; and presence
+signals, groups, or tags reachable from the agent surface.
 
 ## A4. People and agents authenticate separately
 
@@ -98,14 +98,14 @@ and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
 
 As material as A5: the server never acts on a deadline, whose consequence is entirely the
 requester's choice; goals are set explicitly and never inferred (ADR 0001 "Not doing"); derived
-signals, such as overdue, quiet and stranded, inform and never trigger actions or block writes; and
-accuracy of impact, priority, effort, progress, and session state is the honor system's, not
-something to police with enforcement ladders. The server infers one thing a session did not report:
-its own write to a thread while idle, reporting no status, makes it working, logged as inferred, and
-a stopped session stays stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or
-jobs that change threads or a session's status, inferred goals, progress or any other state,
-automatic withdrawals, archives, or escalations, and validation that second-guesses what the agent
-reports.
+signals, such as overdue, quiet, connected and stranded, and what monitoring reports, inform and
+never trigger actions or block writes; and accuracy of impact, priority, effort, progress, and
+session state is the honor system's, not something to police with enforcement ladders. The server
+infers one thing a session did not report: its own write to a thread while idle, reporting no
+status, makes it working, logged as inferred, and a stopped session stays stopped (ADR 0001
+"Sessions report what they are doing"). Look for timers or jobs that change threads or a session's
+status, inferred goals, progress or any other state, automatic withdrawals, archives, or
+escalations, and validation that second-guesses what the agent reports.
 
 ## A7. Stale writes, request ids, and read cursors
 
@@ -118,18 +118,23 @@ original result, and with different content is rejected (ADR 0001 "Read and arch
 optimistic concurrency"). Marks move only the caller's own cursors, never change the thread or
 conflict with a write, and never answer an ask; how they move, and what counts as unread and as
 archived, is in `docs/architecture.md` "Store". A session's presence is stamped in a transaction of
-its own before the call's work, so a call refused later still counts. A session's status changes
-only through its own reports, with its status tool or beside a thread it starts or a message it
-sends, and the one inference A6 names: an update merges into the current status and appends the
-result to the session log, appending nothing when it changes nothing and carries no note, so it
-needs no request id; updates are last-writer-wins and exempt from the stale rule, since only the
-session writes its own status. A report beside a write, and the inference from a write, apply in the
-write's transaction once its checks pass, so a write that fails changes no status, and the report is
-part of the write's digest, so a replay applies nothing again. The UI keeps the draft on a stale
-write (`docs/web-ui.md` "A thread"). Look for marks or derived counts that depart from those
-definitions, check-then-write races outside one immediate transaction, writes that skip the sequence
-check, a status a write changes outside its transaction, and request-id handling that replays a
-different payload.
+its own before the call's work, so a call refused later still counts: the bridge's background
+requests stamp its connection and never a check-in, and every other call by an approved key is the
+agent checking in, with the agent API version it states. A registration's stamp follows its body's
+parse, since the body says whether it is a background request, so a registration whose body fails to
+parse stamps nothing. A background registration only reads: it never registers a key the server does
+not know, which only the agent's own requests, `register` and a tool call's lookup of its
+credential, can. A session's status changes only through its own reports, with its status tool or
+beside a thread it starts or a message it sends, and the one inference A6 names: an update merges
+into the current status and appends the result to the session log, appending nothing when it changes
+nothing and carries no note, so it needs no request id; updates are last-writer-wins and exempt from
+the stale rule, since only the session writes its own status. A report beside a write, and the
+inference from a write, apply in the write's transaction once its checks pass, so a write that fails
+changes no status, and the report is part of the write's digest, so a replay applies nothing again.
+The UI keeps the draft on a stale write (`docs/web-ui.md` "A thread"). Look for marks or derived
+counts that depart from those definitions, check-then-write races outside one immediate transaction,
+writes that skip the sequence check, a status a write changes outside its transaction, and
+request-id handling that replays a different payload.
 
 ## A8. Append-only, attributed history
 
@@ -182,11 +187,12 @@ API".
 
 Registrations move through pending, approved, rejected, expired, and revoked. Approval chooses the
 agent and an existing or new session; approving a new registration for an existing session grants
-its full history, and the approval screen says so. Unapproved registrations expire. Revocation
-leaves the session and its threads visible and workable for the operator, marked as having no active
-credential, and takes effect during long polls (`docs/operator-guide.md` "Agents" and "Approving
-agents"; `docs/architecture.md` "Authentication"). Look for lifecycle transitions without tests,
-re-grants that hide their consequence, and revocation that deletes or orphans data.
+its full history, and the approval screen says so. Unapproved registrations expire, and a background
+registration read never registers a key the server does not know (A7). Revocation leaves the session
+and its threads visible and workable for the operator, marked as having no active credential, and
+takes effect during long polls (`docs/operator-guide.md` "Agents" and "Approving agents";
+`docs/architecture.md` "Authentication"). Look for lifecycle transitions without tests, re-grants
+that hide their consequence, and revocation that deletes or orphans data.
 
 ## A12. Adapters and the agent tool surface
 

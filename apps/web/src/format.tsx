@@ -137,12 +137,15 @@ export interface Whereabouts {
 export type Absence =
   | { kind: "stopped"; outcome: WorkOutcome | undefined }
   | { kind: "quiet"; last_seen_at: string | undefined }
-  | { kind: "credential" };
+  | { kind: "credential" }
+  | { kind: "disconnected" };
 
 // absenceOf says why a session is not likely to see what the operator writes
 // until something starts it again, if it is not: it stopped, with its
 // outcome; or it is quiet, with when it was last seen; or it has no active
-// credential, the first of them that holds.
+// credential; or its bridge is not connected, the first of them that holds.
+// A bridge from before monitoring never says whether it is connected, so its
+// session is never disconnected.
 export function absenceOf(session: Whereabouts): Absence | undefined {
   if (session.state === "stopped") {
     return { kind: "stopped", outcome: session.outcome };
@@ -150,12 +153,15 @@ export function absenceOf(session: Whereabouts): Absence | undefined {
   if (session.presence.quiet) {
     return { kind: "quiet", last_seen_at: session.presence.last_seen_at };
   }
-  return session.credential_active ? undefined : { kind: "credential" };
+  if (!session.credential_active) {
+    return { kind: "credential" };
+  }
+  return session.presence.connected === false ? { kind: "disconnected" } : undefined;
 }
 
 // absenceWords says briefly why a session is not likely to see what the
 // operator writes, as a tag says it: "stopped, completed", "last seen 14:02",
-// "never seen" or "no active credential".
+// "never seen", "no active credential" or "not connected".
 export function absenceWords(absence: Absence): string {
   switch (absence.kind) {
     case "stopped":
@@ -164,12 +170,15 @@ export function absenceWords(absence: Absence): string {
       return lastSeenWords({ quiet: true, last_seen_at: absence.last_seen_at });
     case "credential":
       return "no active credential";
+    case "disconnected":
+      return "not connected";
   }
 }
 
 // AbsenceReason says, as a clause, why a session is not likely to see what
 // the operator writes: "it stopped, completed", "it has not been seen since
-// 14:02", "it has never been seen" or "it has no active credential".
+// 14:02", "it has never been seen", "it has no active credential" or "its
+// bridge is not connected".
 export function AbsenceReason({ absence }: { absence: Absence }) {
   switch (absence.kind) {
     case "stopped":
@@ -184,6 +193,8 @@ export function AbsenceReason({ absence }: { absence: Absence }) {
       );
     case "credential":
       return <>it has no active credential</>;
+    case "disconnected":
+      return <>its bridge is not connected</>;
   }
 }
 

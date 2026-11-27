@@ -17,8 +17,11 @@ the server's part of them on every request, and the web UI renders content inert
   authentication, never from request content.
 - **Isolation.** An agent session sees and changes only what its credential authorizes. A target the
   caller may not access produces the same response as one that does not exist. Session groups and
-  tags, and the presence signals (quiet and stranded), are the operator's alone and reach no agent,
-  and groups and tags grant nothing.
+  tags, the presence signals (quiet, connected and stranded) and what a session's bridge reports of
+  its terminal (its condition, what stopped it and its profile), are the operator's alone and reach
+  no agent, and groups and tags grant nothing. A bridge's report holds only enumerations, booleans,
+  times and its profile's name, never text from the terminal, and is its own observation, trusted as
+  the agent's host is.
 - **Append-only, attributed history.** Nothing is edited or erased: a replacement is a new message,
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
@@ -287,7 +290,22 @@ sends only what its tools are given.
   such as a tunnel's, but the certificate is still checked against the origin's host name, so
   whatever listens there without the server's certificate receives nothing. The server receives the
   session's proposed names, the public key, and what the bridge's tools are given, the bytes of a
-  file `file_upload` names among it.
+  file `file_upload` names among it, and from the bridge's reporter a random id for the bridge and
+  monitoring's reports.
+- **Monitoring.** The bridge reads a terminal only where its configuration names a tmux server's
+  socket, never one it infers from `TMUX` or `TMUX_PANE`, and only while that server's pane's first
+  process is an ancestor of the bridge, so a socket naming another session's pane is read as
+  unknown. It reads the one pane with the `tmux` client, run directly rather than through a shell,
+  and `/proc/<pid>/stat` of the pane's process and the bridge's ancestors, as the user it runs as,
+  which already owns the tmux server, so it gains no access it lacked. It sends no keys. The
+  screen's text, which whatever runs in the pane draws, stays in the bridge's memory: a report holds
+  only enumerations, a boolean, times and the name of the profile, and the bridge's log names a
+  problem with the pane, the processes and what tmux said of it, and the error code of a report the
+  server refused, never the screen or the report. The server shows a report only to the operator,
+  never to an agent. Monitoring is advisory, on the honor system above: a report is the bridge's
+  observation, which the screen can imitate, and any holder of the session's key, its agent
+  included, can send one or keep the session connected, as it can report its status, so a report
+  informs the operator and authorizes nothing.
 - **Files it reads.** `file_upload` reads only the path the agent gives it, as the user the bridge
   runs as, and refuses anything but a regular file, a file over 100 MiB, and anything whose real
   path is in `~/.config/agention`, the bridge's key directory, so a key named directly or through a

@@ -142,6 +142,15 @@ describe("composePresence", () => {
     expect(composePresence([early, { quiet: true }])).toEqual(early);
     expect(composePresence([{ quiet: true }, { quiet: true }])).toEqual({ quiet: true });
   });
+
+  it("is connected when any part is, and states it only when some part does", () => {
+    const on = { quiet: true, connected: true };
+    const off = { quiet: true, connected: false };
+    const unstated = { quiet: true };
+    expect(composePresence([off, unstated, on]).connected).toBe(true);
+    expect(composePresence([off, unstated]).connected).toBe(false);
+    expect(composePresence([unstated, unstated])).not.toHaveProperty("connected");
+  });
 });
 
 describe("composeRollup", () => {

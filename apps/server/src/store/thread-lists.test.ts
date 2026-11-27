@@ -1221,14 +1221,18 @@ describe("counts and groups", () => {
       priority: "urgent",
       archived: false,
     });
-    // An agent is quiet only while all its sessions are, and was last seen
-    // when the latest of them was.
+    // An agent is quiet only while all its sessions are, was last seen when
+    // the latest of them was, and is connected while any of them is.
     expect(composePresence(builder.map((each) => each.presence))).toEqual({
       last_seen_at: new Date(began).toISOString(),
       quiet: false,
+      connected: false,
     });
     const reviewer = sessions.filter((each) => each.agent === "reviewer");
-    expect(composePresence(reviewer.map((each) => each.presence))).toEqual({ quiet: true });
+    expect(composePresence(reviewer.map((each) => each.presence))).toEqual({
+      quiet: true,
+      connected: false,
+    });
   });
 
   it("refuse a cursor another grouping gave out", () => {

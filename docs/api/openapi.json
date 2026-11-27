@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v7",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 7."
+    "version": "operator v1, agent v8",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 8."
   },
   "externalDocs": {
     "description": "How to call the operator API: keys, reading, waiting and files",
@@ -158,7 +158,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -772,7 +772,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1574,7 +1574,7 @@
             "name": "agent_read",
             "in": "query",
             "required": false,
-            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped.",
+            "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped.",
             "schema": {
               "type": "string",
               "enum": [
@@ -3930,7 +3930,7 @@
                           "unread",
                           "stranded"
                         ],
-                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential or has stopped."
+                        "description": "Only threads holding a message of yours that the session has not read: unread for any such thread, stranded for one while the session is quiet, has no active credential, is not connected or has stopped."
                       },
                       "agent": {
                         "minItems": 1,
@@ -5800,6 +5800,9 @@
                   "session": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+                  },
+                  "background": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -7585,6 +7588,192 @@
           }
         }
       }
+    },
+    "/api/agent/s/{agent}/{session}/monitor": {
+      "get": {
+        "operationId": "agentPollMonitor",
+        "summary": "Hold the session's background connection until the wait ends or another bridge acts",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "claim",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "agentReportMonitor",
+        "summary": "Report what the bridge observes of the session, replacing its latest report",
+        "tags": [
+          "agent"
+        ],
+        "security": [
+          {
+            "agentToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/agentApiVersion"
+          },
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+            }
+          },
+          {
+            "name": "bridge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done",
+            "headers": {
+              "Agention-Agent-API": {
+                "$ref": "#/components/headers/agentApiVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "replaced": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "replaced"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7618,7 +7807,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "7"
+          "const": "8"
         }
       }
     },
@@ -8225,6 +8414,197 @@
           "live"
         ]
       },
+      "MonitorCondition": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "permission_prompt",
+          "other_prompt",
+          "running",
+          "at_prompt",
+          "waiting"
+        ],
+        "description": "Where the session is, as its bridge reads its terminal, in this order of precedence: unknown when the bridge cannot read it; permission_prompt at a permission or approval dialog; other_prompt at any other dialog or prompt for someone at the terminal; running in a turn; at_prompt at its normal input line; waiting at rest in nothing its profile recognizes."
+      },
+      "MonitorProfile": {
+        "type": "string",
+        "maxLength": 40,
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+        "description": "The profile the bridge reads the terminal with, such as claude-code."
+      },
+      "MonitorReport": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "monitored"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": true
+              },
+              "profile": {
+                "$ref": "#/components/schemas/MonitorProfile"
+              },
+              "condition": {
+                "$ref": "#/components/schemas/MonitorCondition"
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "stopped_by": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "usage_limit"
+                      },
+                      "resets_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "block"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "error"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  }
+                ],
+                "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
+              }
+            },
+            "required": [
+              "monitored",
+              "profile",
+              "condition",
+              "since"
+            ]
+          }
+        ]
+      },
+      "MonitorState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "monitored"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "monitored": {
+                "type": "boolean",
+                "const": true
+              },
+              "profile": {
+                "$ref": "#/components/schemas/MonitorProfile"
+              },
+              "condition": {
+                "$ref": "#/components/schemas/MonitorCondition"
+              },
+              "since": {
+                "type": "string",
+                "description": "When the session came to its condition."
+              },
+              "stopped_by": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "usage_limit"
+                      },
+                      "resets_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "block"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "const": "error"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ]
+                  }
+                ],
+                "description": "What stopped the session at rest, where its profile can tell: usage_limit, its account's usage limit, resetting at resets_at where the host shows it; block, the host refusing an action on a safety or permission rule; or error, an error from its model provider."
+              }
+            },
+            "required": [
+              "monitored",
+              "profile",
+              "condition",
+              "since"
+            ]
+          }
+        ]
+      },
       "OpenAsks": {
         "type": "object",
         "properties": {
@@ -8302,10 +8682,16 @@
         "type": "object",
         "properties": {
           "last_seen_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
           },
           "quiet": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           }
         },
         "required": [
@@ -8451,6 +8837,30 @@
           "expires_at"
         ]
       },
+      "SessionPresence": {
+        "type": "object",
+        "properties": {
+          "last_seen_at": {
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
+          },
+          "quiet": {
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/MonitorState",
+            "description": "What the session's bridge last reported of its terminal, while the bridge is connected; absent until one reports."
+          }
+        },
+        "required": [
+          "quiet"
+        ]
+      },
       "SessionStatus": {
         "type": "object",
         "properties": {
@@ -8498,7 +8908,7 @@
             }
           },
           "presence": {
-            "$ref": "#/components/schemas/Presence"
+            "$ref": "#/components/schemas/SessionPresence"
           },
           "registrations": {
             "type": "array",
@@ -8680,10 +9090,16 @@
         "type": "object",
         "properties": {
           "last_seen_at": {
-            "type": "string"
+            "type": "string",
+            "description": "When the session's agent last checked in, through any route but its bridge's background ones, to within a minute; absent until it first does."
           },
           "quiet": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the agent has not checked in within the server's quiet threshold, or never has."
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the session's bridge made a background request within the last minute. Absent while no bridge is connected and the agent last checked in through a bridge from before monitoring, which cannot report a connection."
           },
           "state": {
             "$ref": "#/components/schemas/WorkState"

@@ -115,7 +115,7 @@ agention serve --data ~/.local/share/agention --origin https://agention.example.
 | `--tls-cert FILE`    | The TLS certificate chain, in PEM, for the server to terminate TLS itself                                                |
 | `--tls-key FILE`     | The certificate's private key, in PEM; give both TLS options or neither                                                  |
 | `--allow-plain-http` | Allow plain HTTP on an address other than loopback                                                                       |
-| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session not seen is quiet; 15 by default                                             |
+| `--quiet-minutes N`  | Minutes, 1 to 10,080, after which a session whose agent has not checked in is quiet; 15 by default                       |
 | `--name NAME`        | The server's name, 1 to 40 characters on one line, set by its first start                                                |
 | `--api-docs`         | Serve the API's documentation, without sign-in, under `/docs/api/`, for [writing programs against it](operator-api.md)   |
 
@@ -133,15 +133,20 @@ arriving at the first as abandoned. Give a second server, say a personal one bes
 its own data directory and `--name`. Two can share a host, under different ports, without signing
 each other out.
 
-A session is seen each time its agent calls the server. One not seen within `--quiet-minutes`, plus
-the minute that may take to show, or never seen, is quiet: it has stopped, or is busy elsewhere. A
-thread is **stranded** when its agent has not read your latest messages and its session is quiet,
-stopped or without an active credential. A session that reports it stopped says how, as
-**completed**, **withdrawn** (you called it off) or **stalled** (it cannot go on), and stays stopped
-until it reports working or idle. An idle session that writes to its threads without reporting a
-state or note, by a message, a new thread, or marking one read, unread or archived, is working from
-then on: the server marks it so itself and logs that it did, with no note. Checking for your answers
-changes nothing, and neither does anything you write.
+A session's agent checks in each time it calls Agention, and its session is seen then. One whose
+agent has not checked in within `--quiet-minutes`, plus the minute that may take to show, or never,
+is quiet: it has stopped, or is busy elsewhere. A session's bridge may also hold a background
+connection to the server, which is not the agent checking in; while it does, the session is
+**connected**, and it stops being so within a minute of the bridge ending. A bridge from before the
+background connection cannot report one, so a session whose agent last checked in through such a
+bridge, with no newer one connected, is never shown disconnected. A thread is **stranded** when its
+agent has not read your latest messages and its session is quiet, not connected, stopped or without
+an active credential. A session that reports it stopped says how, as **completed**, **withdrawn**
+(you called it off) or **stalled** (it cannot go on), and stays stopped until it reports working or
+idle. An idle session that writes to its threads without reporting a state or note, by a message, a
+new thread, or marking one read, unread or archived, is working from then on: the server marks it so
+itself and logs that it did, with no note. Checking for your answers changes nothing, and neither
+does anything you write.
 
 The data directory and the database must be private to the user running Agention, under the rule in
 [SECURITY.md](../SECURITY.md#private-files). `agention serve` creates a missing data directory, and
@@ -326,13 +331,15 @@ and give the bridge the server's origin; on anything else,
 approval. The bridge needs Node.js 24 or later, and reads its settings from the environment the
 agent host gives it:
 
-| Variable              | Meaning                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `AGENTION_URL`        | The server's origin, spelled as `--origin` gives it; required                                   |
-| `AGENTION_CONNECT`    | A host and port to connect to in place of the origin's, such as a tunnel's; optional            |
-| `AGENTWORKS_AGENT`    | The agent's name, unless the agent's `register` call gives one                                  |
-| `AGENTWORKS_SESSION`  | The session's name, unless the agent's `register` call gives one                                |
-| `NODE_EXTRA_CA_CERTS` | Node's own setting: a file of certificate authorities to trust, for a server with a private one |
+| Variable                   | Meaning                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTION_URL`             | The server's origin, spelled as `--origin` gives it; required                                                                                |
+| `AGENTION_CONNECT`         | A host and port to connect to in place of the origin's, such as a tunnel's; optional                                                         |
+| `AGENTION_TMUX_SOCKET`     | The socket of the tmux server this session's agent host runs in, set per session, to monitor its terminal; optional                          |
+| `AGENTION_HARNESS_PROFILE` | How to read that terminal, `auto` by default ([Monitoring a session's terminal](#monitoring-a-sessions-terminal))                            |
+| `AGENTWORKS_AGENT`         | The agent's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session   |
+| `AGENTWORKS_SESSION`       | The session's name, unless the agent's `register` call gives one first; a bridge started with this session's key on disk serves this session |
+| `NODE_EXTRA_CA_CERTS`      | Node's own setting: a file of certificate authorities to trust, for a server with a private one                                              |
 
 Names are 1 to 63 of `a-z`, `0-9`, `_` and `-`, starting with a letter or digit. The bridge refuses
 to work while `NODE_TLS_REJECT_UNAUTHORIZED` is `0`, which would let its tokens cross TLS that Node
@@ -443,6 +450,70 @@ answer with what to change, such as `chmod go-w ~`. The bridge changes nothing t
 Sessions of one operating-system user can use each other's keys, so run agents that must not act as
 each other as different users. [SECURITY.md](../SECURITY.md#the-agent-bridge) says what the bridge
 keeps and sends.
+
+### Monitoring a session's terminal
+
+Once you approve a session, its bridge holds a background connection to the server, so the operator
+API's session reads say whether the session's bridge is connected, apart from when its agent last
+checked in ([Operator API](operator-api.md#reading-and-waiting)). Given the tmux server its agent
+host runs in, the bridge also monitors the session's terminal and reports its condition: unknown, at
+a permission prompt or another prompt, running, at its prompt, or waiting, and since when. It reads
+the screen of that server's one pane on the agent's machine and sends only the condition and its
+time, never the screen's text.
+
+The bridge takes the tmux server's socket and how to read the terminal from options or variables, an
+option winning over its variable:
+
+| Option              | Variable                   | Value                                                                                                                                                          |
+| ------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--tmux-socket`     | `AGENTION_TMUX_SOCKET`     | The tmux server's socket path. Without it the bridge monitors no terminal.                                                                                     |
+| `--harness-profile` | `AGENTION_HARNESS_PROFILE` | `auto`, the default, for the agent host the bridge runs under; `claude-code` or `codex` to name one; or `generic-strict` or `generic-lenient` for another host |
+
+Monitoring needs Linux, for `/proc`, and tmux 3.3 or later on the agent's machine.
+
+The socket names one session's tmux server, so set `AGENTION_TMUX_SOCKET` in that session's own
+environment, never globally (in a shell profile beside `AGENTION_URL`, say): the plugins start the
+bridge without options and pass it both variables, so every session started from that shell would
+name the same pane. The bridge never guesses the socket from the tmux it runs in. The tmux server
+must hold just the agent host's pane, as each Agentworks session's does; with more than one pane,
+the condition is unknown. Inside the session's tmux, `tmux display-message -p '#{socket_path}'`
+prints the socket's path. Agentworks runs every session in a tmux server of its own, and until it
+sets `AGENTION_TMUX_SOCKET` itself, set it by hand in the session's shell before starting the agent
+host there:
+
+```sh
+export AGENTION_TMUX_SOCKET="${TMUX%%,*}"
+claude
+```
+
+The bridge reads the pane only while the pane's first process is an ancestor of the bridge, which
+the agent host started, so a socket that names another session's pane reads as unknown. The host
+must hold the pane's terminal itself: started in the pane directly, or by a wrapper that execs it,
+such as `exec claude`. A wrapper that runs the host as its child instead, such as a script without
+`exec`, keeps the terminal's foreground from the pane's first process, and the condition reads as
+unknown.
+
+`auto` reads the terminal with what Agention knows of the host that started the bridge, Claude Code
+or Codex, and with the strict generic profile for any other. The generic profiles tell only whether
+the host is running or waiting at what looks like its input line, the strict one more cautiously,
+and never name a prompt.
+
+The condition is advisory: whatever runs in the pane draws the screen it is read from, so a screen
+can imitate a dialog, and an agent can report its own session's condition, or keep it connected,
+with its own key, as it reports its status, on the honor system of [SECURITY.md](../SECURITY.md).
+Use it to find the sessions to look at, not as proof of what one is doing.
+
+A setting monitoring can't use never stops the bridge or its tools. The bridge logs it to its
+standard error, once each time the problem begins, and reports the condition as unknown: a socket no
+tmux server listens on, a path too long for a socket, no `tmux` command, a machine without `/proc`,
+a tmux that leaves the pane's formats empty, a pane that does not run the bridge's host, more than
+one pane, or a pane whose first process no longer holds the terminal. A profile name it doesn't know
+is logged once, and the strict generic profile reads the terminal instead.
+
+A bridge started for the session that `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` name, with its key
+already on disk, as when an Agentworks session restarts, reports as it starts; any other reports
+once its agent registers or calls a tool. Several bridges can run for one session, as Codex starts a
+new one without ending the old; only the one started or called last reports.
 
 ### Reaching the server through a tunnel
 

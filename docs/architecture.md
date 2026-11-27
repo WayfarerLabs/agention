@@ -46,23 +46,25 @@ The rest of this document uses these terms:
 | Open ask               | An ask still waiting for its answer ([Messages and asks](#messages-and-asks))                                                      |
 | Thread status          | A thread's roll-up of its asks ([Derived state](#derived-state))                                                                   |
 | Marks                  | Each party's own read and archive marks on a thread ([Marks](#marks))                                                              |
-| Quiet                  | A session the server has not heard from lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                      |
+| Quiet                  | A session whose agent has not checked in lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                     |
+| Connected              | A session whose bridge holds its background connection ([Presence, quiet and stranded](#presence-quiet-and-stranded))              |
 | Stranded               | A thread whose session is not there to read what the operator wrote ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
 
 ## Components
 
 Agention is TypeScript on Node, in npm workspaces with one lockfile.
 
-| Component                | State                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/api`           | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation. |
-| `packages/build`         | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.  |
-| `packages/private-files` | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                         |
-| `apps/server`            | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                     |
-| `apps/bridge`            | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                          |
-| `apps/web`               | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                 |
-| `apps/agent-plugin`      | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                      |
-| `scripts/`               | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                        |
+| Component                   | State                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/api`              | The API contract: zod schemas for every route's requests and responses, which are also their bounds, the error codes and the scopes, and their JSON Schema for the API's documentation.                      |
+| `packages/build`            | The bundle build the server and the bridge use, one esbuild file each, and the build of the web UI's diagram frame script, with the license notices of the npm packages each includes.                       |
+| `packages/private-files`    | The private-file rule the server's database and the bridge's key files obey, which both bundle.                                                                                                              |
+| `packages/harness-observer` | Reads an agent harness's tmux pane and says whether the harness is running and, at rest, what its screen holds and why it stopped, through a profile of the harness's screens; it knows nothing of Agention. |
+| `apps/server`               | The `agention` CLI: `serve` runs the HTTP API, with agent, passkey and API key authentication, over the database, identity and store; `backup` copies the database.                                          |
+| `apps/bridge`               | The `agention-mcp` agent bridge: a stdio MCP server whose tools make requests on the agent API, signed with the session's key.                                                                               |
+| `apps/web`                  | The React web UI, built with Vite, which the server package ships and serves: passkey sign-in and the operator's views.                                                                                      |
+| `apps/agent-plugin`         | The canonical plugin definition and usage skill, and the generator that renders the Claude Code and Codex plugins.                                                                                           |
+| `scripts/`                  | The checks CI runs, file linting, plugin generation, the generation of the API's OpenAPI document, and the retaking of the README's screenshots.                                                             |
 
 ## Source and packages
 
@@ -127,6 +129,9 @@ inferred types the server, the bridge and the web UI share:
   and removing groups, creating, renaming, recoloring and removing a tag, and setting a session's
   group and an agent's or a session's tags, on their own or with an approval;
 - the agent API's version, the header that carries it and the oldest version the server serves;
+- monitoring (`packages/api/src/monitoring.ts`): a bridge's id, its background poll's query and
+  answer, its report of what it observes (`monitorReport`), and the report as the operator sees it
+  (`monitorState`);
 - the browser session's state, the passkey ceremonies' inputs and the operator's passkey list;
 - the operator's settings: voice's settings and their bounds, the base URL rule (`checkBaseUrl`),
   the hosted presets, the types a recording is sent as, a transcription's answer, and the space
@@ -237,10 +242,12 @@ Two views define once, for every query, which messages are live (`live_messages`
 replaces them) and which asks are open (`open_asks`: on a live message, and no live message answers
 or withdraws them).
 
-A thread changes only its latest sequence, which a trigger holds. A session records when it was last
-seen, kept to the minute. Checks hold the rest of what the store keeps true: one operator, whose id
-is 1; a registration's session set exactly when it is approved or revoked; and a message's detail
-only beside its text.
+A thread changes only its latest sequence, which a trigger holds. A session records when its agent
+last checked in, kept to the minute, with the agent API version of that call, and when its bridge
+last made a background request. `monitor_reports` holds each session's latest monitoring report, one
+row each, which the next replaces, its checks holding the report's shape. Checks hold the rest of
+what the store keeps true: one operator, whose id is 1; a registration's session set exactly when it
+is approved or revoked; and a message's detail only beside its text.
 
 `message_positions` gives every message a position among all messages, in the order they are
 written, which the operator's wait across sessions counts from. A message has no stable integer key
@@ -459,26 +466,64 @@ earliest.
 ### Presence, quiet and stranded
 
 Every authenticated call on the agent mount, and `register` from an approved key, the first call of
-every conversation, marks its session seen before its own work, in a transaction of its own, so a
-call refused later still counts.
+every conversation, marks its session's presence before its own work, in a transaction of its own,
+so a call refused later still counts.
 
-- It writes only while the registration is still approved, so a revocation that commits as a token
-  is verified stamps nothing.
-- It writes only when that moves the session's last seen a minute or more, or when the last seen is
-  after now, so a clock stepped back never holds it still.
+- **Background requests.** The bridge's monitoring poll and report (`backgroundOperations` in
+  `apps/server/src/http/agent-operations.ts`) and a `register` that says `background`, which the
+  registration route reads from its body, stamp when the session's bridge last made one, on every
+  one, and never mark the agent checked in. A registration's stamp follows its body's parse, so a
+  body that fails to parse stamps nothing.
+- **Checking in.** Every other call is the agent checking in, stamped with the agent API version the
+  call states, and only when that moves the last check-in a minute or more, when the last check-in
+  is after now, so a clock stepped back never holds it still, or when the version differs from the
+  last one's.
+- A stamp writes only while the registration is still approved, so a revocation that commits as a
+  token is verified stamps nothing.
 - A stamp that fails is logged and the call carries on, since presence is advisory.
 - A pending registration has no session, so its calls mark nothing.
 
-A session is quiet when it has not been seen within `agention serve --quiet-minutes`, 15 by default,
-and the minute a stamp may lag, so a session that keeps calling never is, or when it was never seen.
+From those the reads derive, against the request's clock and never stored:
 
-A thread is stranded when it holds a live message of the operator's that the session has not read
-while the session is quiet, has no active credential or has stopped: the agent is not there to read
-it.
+- **Quiet**: the agent never checked in, or has not within `agention serve --quiet-minutes`, 15 by
+  default, and the minute a stamp may lag, so an agent that keeps calling never is quiet.
+- **Connected**: the bridge made a background request within the last minute. A bridge older than
+  agent API version 8 cannot report a connection, so while no bridge is connected and the agent last
+  checked in through such a bridge, as every check-in from before versions were kept did, the
+  session follows their rule: connected is not stated and never counts against it.
+- **Stranded**: a thread holding a live message of the operator's that the session has not read
+  while the session is quiet, has no active credential, is not connected or has stopped: the agent
+  is not there to read it.
 
-Both are derived in queries against the request's clock, and only the thread's audience, the
-operator, sees them, with the state and outcome the session last reported, which say why it is
-stranded; a grouped list's presence for a session or an agent carries neither.
+Only the thread's audience, the operator, sees them, with the state and outcome the session last
+reported, which say why it is stranded; a grouped list's presence for a session or an agent carries
+quiet, last seen and connected, and neither state nor outcome.
+
+### Monitoring reports
+
+The bridge's monitoring (`apps/server/src/store/monitors.ts`) is a background long poll and a
+report. Several bridges may run for one session with its key, as Codex starts new ones without
+ending the old, and one acts for it: the latest to claim it.
+
+- **The holder.** The store keeps that bridge's id for each session in memory (`BridgeHolders`),
+  with the number of the latest report accepted from it, since it matters only while bridges poll
+  this process. A server that starts again holds none until a bridge polls or reports, and revoking
+  a credential of the session forgets its holder, so the next bridge to call takes it.
+- **Claims.** A poll names its bridge's id and may claim the session, as a bridge's reporter does
+  when it starts and when it handles a tool call after being replaced. A claim takes the session
+  from any other bridge, deletes the session's report, so nothing stale shows until the new holder
+  reports, and wakes the other bridge's open poll, which answers `replaced`. A poll or report from a
+  bridge other than the one acting, without a claim, answers `replaced` at once and changes nothing.
+- **The poll.** Otherwise the poll waits on the session's channel for 25 seconds, or less if it
+  asks, re-authorizing on each wake as every long poll does ([Waits](#waits)).
+- **Reports.** A report carries its bridge's number for it, `seq`, which counts up with each report
+  the bridge sends, and replaces the session's latest unless its number is no higher than the latest
+  accepted from that bridge, when it is ignored, so a report delayed past a later one never
+  overwrites it.
+
+The holder changes in memory only once the write that goes with it, a claim's deletion or a report,
+has committed. The latest report shows to the operator only while the session is connected, so a
+bridge that ended never leaves its last report standing as current.
 
 ### Session status
 
@@ -525,7 +570,7 @@ The sessions view's page pages the agents in name order for the operator, each w
 most 500 of its sessions, saying when it leaves any out: those working or idle first, then those
 that never reported, then stopped ones, each latest seen first. Each session carries:
 
-- its presence, by the formula threads use;
+- its presence, by the formula threads use, with its bridge's latest report while it is connected;
 - its group and tags;
 - its approved registrations, with their ids and codes;
 - its status with the latest entry's note, none after an inferred one, and as `updated_at` when that
@@ -830,11 +875,11 @@ with its group, and, grouped by topic, of each of its topics:
 - how many threads, and how many unread;
 - whether any holds a blocking ask open to the caller, and the highest priority of an open ask;
 - whether all are archived for the caller;
-- each session's presence: when it was last seen and whether it is quiet.
+- each session's presence: when it was last seen, whether it is quiet and whether it is connected.
 
 `composeRollup` rolls up groups into the one holding them, as the web UI does for a session group's
 sessions and an agent's, and `composePresence` sessions' presence into their agent's, quiet when all
-are and last seen when the latest was.
+are, last seen when the latest was, and connected when any is.
 
 ### Counts
 
@@ -863,14 +908,16 @@ each, the first in name order, in the list's or by latest mention, and say when 
 
 ### Waits
 
-A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`) and the operator's wait
-across sessions (`waitForEverySession`) share one loop: poll in a transaction that authorizes, wait
-on the notifier, poll again.
+A session's long poll (`waitForThreads`, in `apps/server/src/store/wait.ts`), the operator's wait
+across sessions (`waitForEverySession`) and a bridge's monitoring poll share one loop (`longPoll`):
+poll in a transaction that authorizes, wait on the notifier, poll again.
 
 An in-process notifier wakes them once a change commits:
 
 - A write, or a registration's revocation, wakes the long polls waiting on the session, and with
   them the waits across every session.
+- A bridge taking a session for its monitoring wakes the same waits, so the bridge it replaced hears
+  at once ([Monitoring reports](#monitoring-reports)).
 - Revoking an API key and ending a browser session, by signing out, signing in again on that
   browser, removing the passkey that signed it in or replacing the passkeys through a link, wake the
   waits across every session alone, since no session's own changed.
@@ -951,9 +998,10 @@ nothing.
 ### Agent operations
 
 Agent operations (`agent-operations.ts`) are the agent mount's: a session's status, starting a
-thread in it, its thread list and its long poll, and the operations on one thread and on its
-session's uploads (`thread-operations.ts`). Every mount shares those last under
-`/s/:agent/:session`, so the role, message and file checks have one handler each:
+thread in it, its thread list and its long poll, its bridge's monitoring poll and report (`GET` and
+`POST /s/:agent/:session/monitor`, [Monitoring reports](#monitoring-reports)), and the operations on
+one thread and on its session's uploads (`thread-operations.ts`). Every mount shares those last
+under `/s/:agent/:session`, so the role, message and file checks have one handler each:
 
 - a thread (`/threads/:thread`);
 - a message, whose schema each mount gives, since only the agent mount's carries the session's
@@ -1260,7 +1308,9 @@ approved registration.
 Every refusal of an agent's credential, including one inside the operation, such as a long poll a
 revocation ends, tells the agent to call `register`, which reports what the operator still has to
 do. A token for another audience is refused with a message naming the expected origin. The
-registration route verifies the token against the key it names, which may be new.
+registration route verifies the token against the key it names, which may be new; a `register` that
+says `background` only reads, so for a key no registration has it records nothing and answers
+`not_found`.
 
 ### Passkeys
 
@@ -1352,8 +1402,8 @@ identity provider, would change Agention in these places:
 - **The session log.** Each entry in `session_updates` names the registration that wrote it, in a
   column that is never null.
 - **The signals.** Whether a session holds a working credential (`credential_active`, in the thread
-  list and the registrations' queries) and its last-seen stamp (`markSeen`, which the agent mount
-  calls for a registration) are both keyed on registrations.
+  list and the registrations' queries) and its presence stamps (`markCheckedIn` and
+  `markBackground`, which the agent mount calls for a registration) are both keyed on registrations.
 
 Everything else keys on agents and sessions themselves, not on the credential that let them in.
 
@@ -1497,8 +1547,9 @@ that never finished included.
 `apps/bridge/` is a stdio MCP server on `@modelcontextprotocol/server`, connected straight to the
 SDK's stdio transport, so it serves the protocol revisions hosts open with `initialize` and answers
 `server/discover` as a method it does not have. Its entry point checks for Node 24 or later before
-loading anything else. Without options `agention-mcp` serves; `--version` and `--help` print and
-exit. It exits once the host closes its standard input.
+loading anything else. Without `--version` or `--help`, which print and exit, `agention-mcp` serves,
+taking monitoring's two options, `--tmux-socket` and `--harness-profile`. It exits once the host
+closes its standard input, ending its reporter's requests and its reading of the pane.
 
 Its answer to `initialize` carries instructions that state the usage skill's first rule, to ask
 through Agention and never wait at the terminal for an answer, and tell the agent to load the skill,
@@ -1524,6 +1575,12 @@ The session's names come from the first `register` call that gives them, else fr
 `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION`, a name `register` leaves out falling back to its
 variable. Whichever the bridge uses first fixes the session for the life of the process; naming
 another afterwards is `invalid_input`.
+
+Monitoring reads `--tmux-socket`, else `AGENTION_TMUX_SOCKET`, the socket of the tmux server whose
+one pane the agent host runs in, and `--harness-profile`, else `AGENTION_HARNESS_PROFILE`, else
+`auto`; an empty value counts as unset, and the bridge never reads `TMUX` or `TMUX_PANE`. No setting
+of monitoring's stops the bridge or changes a tool's answer: a profile name the harness observer's
+registry does not know is logged once, and the strict generic profile reads the pane instead.
 
 ### Key file
 
@@ -1646,6 +1703,76 @@ the session's status; and the two file tools, `file_upload` and `file_get`
   `wait_seconds` would have ended, counted from the call's start, so an agent that waits again at
   once does not call a server it cannot use in a tight loop.
 
+### Reporter
+
+The reporter (`apps/bridge/src/reporter.ts`) holds the session's background connection and reports
+what monitoring observes, beside the tools, which work as without it and whose answers carry nothing
+of it.
+
+- **Starting.** It starts with the bridge when the default session, the one `AGENTWORKS_AGENT` and
+  `AGENTWORKS_SESSION` name, has its key on disk, once the host has initialized, so the `auto`
+  profile is chosen from the client's name: a bridge started again under Agentworks shows its
+  session connected with no tool call. That start fixes the session's names, creates no key and logs
+  nothing; with no key, or a key file it cannot read, the reporter does not start, and a key that is
+  not approved is read as below. `register` starts it too, whatever it answers, and so does the
+  first tool call that finds the session's credential while it is not running, as in a bridge
+  started before the key was on disk.
+- **Pending.** While the registration is pending it reads its state every 15 seconds with the
+  request `register` makes, marked `background`, until two minutes before it expires by the bridge's
+  clock, the clock skew tokens allow; once the operator approves, it starts with no tool call.
+- **Ending.** A registration that is rejected, revoked or expired, a pending one past that margin,
+  or a key the server does not know, as once it has pruned the key's expired pending registration,
+  which a background read answers `not_found` and never registers, ends it, logging nothing, until
+  the next `register`, or a tool call that finds the credential.
+- **Polling.** Approved, it long-polls `GET /api/agent/s/<agent>/<session>/monitor` with an id of 16
+  random bytes it drew when the bridge started, one poll at a time, each waiting 25 seconds, the
+  next starting at least a second after the last began, and backing off from 1 to 60 seconds,
+  doubling, while requests fail; a key the server no longer accepts has its registration read again.
+  Its first poll claims the session and asks for no wait, so the server has taken the claim before
+  any report follows.
+- **Reporting.** From then on it watches the monitor and sends `POST .../monitor` with the whole
+  report and its number, counting up from 1 for the life of the process: the first on claiming, then
+  one for each observation that differs from the last, one request at a time. A report that fails to
+  reach the server, or that the server fails on or answers `rate_limited`, is sent again, or the one
+  that replaced it, after a pause that backs off from 1 to 60 seconds, doubling, or as soon as a
+  poll is answered. One the server refuses with any other error of the 4xx range, such as
+  `invalid_input`, which sending again would not change, is dropped, and the bridge logs the error's
+  code, once for a run of the same refusal, never the report or the server's message.
+- **Replaced.** A poll or report answered `replaced` means another bridge of the session claimed it:
+  the reporter stops polling, watching and reporting until this bridge next handles `register` or a
+  tool call that finds the credential, when it claims the session again.
+- **Its requests.** They sign with the key on disk and act in the names granted to it, and a request
+  it makes to learn them is marked `background` too, so none marks the agent checked in. Against a
+  server older than the bridge's agent API version, they fail as every tool's do and it backs off to
+  a minute between them.
+
+### Monitoring
+
+`apps/bridge/src/monitoring.ts` reads the pane the agent host runs in. Without a socket, the report
+says the bridge monitors no pane.
+
+- **Reading the pane.** With a socket, a `PaneObserver` from `packages/harness-observer` reads the
+  tmux server's one pane through a `TmuxPane` once a second, while the bridge acts for its session,
+  with the profile the configuration names; `auto` takes the harness from the name and version of
+  the MCP client's `initialize`, each a string of at most 100 and 50 characters or none, and an
+  unknown harness gets the strict generic profile.
+- **Only its own pane.** The pane is read only while its first process is an ancestor of the
+  bridge's, walking `/proc`'s parent links, so a socket that names another session's pane reads as
+  unknown.
+- **The report.** A report carries the profile's name, the condition and since when, and what
+  stopped the harness with its reset time, all spelled as the API spells them, with a reset time the
+  API would not take left out. The observer says whether the harness is running and, at rest, what
+  its screen holds; the bridge spells that as one condition, the screen naming it at rest (its
+  prompt `at_prompt`, a screen the profile does not recognize `waiting`), and puts the stopped-by
+  reason beside whatever condition it is.
+- **What it logs.** The bridge logs to its standard error, once each time one begins, a pane it
+  cannot read (no tmux server at the socket, a path too long for a socket, no `tmux` command), a
+  machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves the formats it is
+  asked for empty, which no tmux tested, 3.3 or later, does, a pane that does not run the bridge, a
+  tmux server holding more than one pane, and a pane whose first process does not hold its terminal,
+  each of which the observer reads as unknown; the line names the socket, process ids and what tmux
+  said, never the screen's text.
+
 ### Status reminder
 
 The bridge keeps, within its process, when it last sent a status update the server logged, and
@@ -1733,7 +1860,9 @@ The bridge's tests run the server from `apps/server` in process, over TLS with a
 test time, and drive bridges through the MCP SDK's client, in memory or as a process over stdio
 (`apps/bridge/src/test-harness.ts`). The agent compatibility gate runs each released bridge's
 published bundle the same way against the server at HEAD
-([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API").
+([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api) "The agent API"). The reporter's tests pace it
+in milliseconds, record the requests bridges make, and read monitoring from a pane they draw
+themselves or from the harness observer's scripted harness in a tmux server of their own.
 
 ## Web UI
 
@@ -1954,7 +2083,7 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
 
 Wherever a thread shows as stranded, the UI says why from the session's presence in the thread's
 summary: the stop the session reported, with its outcome; otherwise quiet, with when it was last
-seen; otherwise no active credential.
+seen; otherwise no active credential; otherwise its bridge not connected.
 
 ### Navigation counts
 
@@ -2208,10 +2337,11 @@ plugin root. The definition names the bridge's package, and the generator pins i
 version: `npx -y @wayfarerlabs/agention-mcp@<version>`. Claude Code passes the server its whole
 environment. Codex passes a server only a few common variables, such as `HOME` and `PATH`, and those
 the server lists, so the Codex declaration lists the bridge's configuration variables:
-`AGENTION_CONNECT`, `AGENTION_URL`, `AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and
-`NODE_EXTRA_CA_CERTS`. The definition's `toolTimeoutSeconds`, 600, becomes the Codex declaration's
-`tool_timeout_sec`, since Codex ends a tool call after 60 seconds by default and a file's transfer
-can take longer; Claude Code's plugin format has no such setting.
+`AGENTION_CONNECT`, `AGENTION_HARNESS_PROFILE`, `AGENTION_TMUX_SOCKET`, `AGENTION_URL`,
+`AGENTWORKS_AGENT`, `AGENTWORKS_SESSION` and `NODE_EXTRA_CA_CERTS`. The definition's
+`toolTimeoutSeconds`, 600, becomes the Codex declaration's `tool_timeout_sec`, since Codex ends a
+tool call after 60 seconds by default and a file's transfer can take longer; Claude Code's plugin
+format has no such setting.
 
 The generator owns those output paths and replaces them wholesale, never writing through a symlink.
 For development it also renders plugins that run the bridge from a packed tarball instead, into a

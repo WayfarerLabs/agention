@@ -76,23 +76,28 @@ interface Polled<R> {
   expiresAt?: number | undefined;
 }
 
+// found says whether a wait for threads has something to answer.
+const found = (result: { threads: readonly unknown[] }) => result.threads.length > 0;
+
 // longPoll runs a long poll of waitSeconds. It answers at once when poll finds
-// threads; otherwise it waits on poll's channel and polls again after each
-// notification there, until threads appear, the wait ends or signal aborts.
-// It also polls again once the credential expires, so an expiry ends the wait
-// as a revocation does. Every poll authorizes, so a credential revoked while
-// waiting ends the wait with its refusal as soon as revocation wakes it.
-async function longPoll<R extends { threads: readonly unknown[] }>(
+// what answered looks for; otherwise it waits on poll's channel and polls
+// again after each notification there, until it finds it, the wait ends or
+// signal aborts. It also polls again once the credential expires, so an
+// expiry ends the wait as a revocation does. Every poll authorizes, so a
+// credential revoked while waiting ends the wait with its refusal as soon as
+// revocation wakes it.
+export async function longPoll<R>(
   store: Store,
   waitSeconds: number,
   poll: () => Polled<R>,
   signal: AbortSignal | undefined,
+  answered: (result: R) => boolean,
 ): Promise<R> {
   const deadline = performance.now() + waitSeconds * 1000;
   for (;;) {
     const { result, channel, expiresAt } = poll();
     const remaining = deadline - performance.now();
-    if (result.threads.length > 0 || remaining <= 0 || signal?.aborted) {
+    if (answered(result) || remaining <= 0 || signal?.aborted) {
       return result;
     }
     const untilExpiry = expiresAt === undefined ? Infinity : expiresAt - store.clock();
@@ -124,6 +129,7 @@ export async function waitForThreads(
       return { result, channel: sessionId };
     },
     signal,
+    found,
   );
 }
 
@@ -201,5 +207,6 @@ export async function waitForEverySession(
     query.wait,
     () => ({ ...pollEverySession(store, identity, since, query.limit), channel: everySession }),
     signal,
+    found,
   );
 }

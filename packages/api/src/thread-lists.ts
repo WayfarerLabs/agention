@@ -92,8 +92,8 @@ export const agentReadFilter = z
   .enum(["unread", "stranded"])
   .describe(
     "Only threads holding a message of yours that the session has not read: unread for any " +
-      "such thread, stranded for one while the session is quiet, has no active credential or " +
-      "has stopped.",
+      "such thread, stranded for one while the session is quiet, has no active credential, is " +
+      "not connected or has stopped.",
   );
 
 // The filters on the pull requests and branches a thread's live messages
@@ -434,7 +434,8 @@ export function composeRollup(parts: readonly Rollup[]): Rollup {
 }
 
 // composePresence gives an agent's presence from its sessions': quiet when
-// every one is, and last seen when the latest was.
+// every one is, last seen when the latest was, and connected when any is,
+// not connected when none is and any says so, and neither when none says.
 export function composePresence(parts: readonly Presence[]): Presence {
   const seen = parts.flatMap((each) =>
     each.last_seen_at === undefined ? [] : [each.last_seen_at],
@@ -443,9 +444,11 @@ export function composePresence(parts: readonly Presence[]): Presence {
     (best, each) => (best === undefined || Date.parse(each) > Date.parse(best) ? each : best),
     undefined,
   );
+  const stated = parts.flatMap((each) => (each.connected === undefined ? [] : [each.connected]));
   return {
     ...(latest === undefined ? {} : { last_seen_at: latest }),
     quiet: parts.every((each) => each.quiet),
+    ...(stated.length === 0 ? {} : { connected: stated.some((each) => each) }),
   };
 }
 

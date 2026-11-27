@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { cursor, maxListed, pageLimit, queryNumber, sequence } from "./bounds.ts";
 import { groupRef, maxTags, tagName } from "./groups-and-tags.ts";
+import { monitorState } from "./monitoring.ts";
 import { name } from "./names.ts";
 import { registrationCodePattern, registrationId } from "./registrations.ts";
 import { singleLineText } from "./text.ts";
@@ -9,10 +10,36 @@ import { singleLineText } from "./text.ts";
 // work, as its status, which it changes through one call and the operator
 // reads in its log.
 
-// A session's presence: when it was last seen, kept to the minute and absent
-// until it first is, and whether it is quiet, not seen within the server's
-// quiet threshold, or never.
-export const presence = z.object({ last_seen_at: z.string().optional(), quiet: z.boolean() });
+// A session's presence: when its agent was last seen checking in, calling
+// Agention through any route but its bridge's background ones, kept to the
+// minute and absent until it first does; whether it is quiet, not seen within
+// the server's quiet threshold, or never; and whether its bridge is
+// connected, having made a background request within the last minute. Whether
+// it is connected is absent while the session follows the rule of bridges
+// that predate monitoring, which cannot report a connection: no bridge is
+// connected and the agent last checked in through one of them.
+export const presence = z.object({
+  last_seen_at: z
+    .string()
+    .optional()
+    .describe(
+      "When the session's agent last checked in, through any route but its bridge's background " +
+        "ones, to within a minute; absent until it first does.",
+    ),
+  quiet: z
+    .boolean()
+    .describe(
+      "Whether the agent has not checked in within the server's quiet threshold, or never has.",
+    ),
+  connected: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the session's bridge made a background request within the last minute. Absent " +
+        "while no bridge is connected and the agent last checked in through a bridge from " +
+        "before monitoring, which cannot report a connection.",
+    ),
+});
 export type Presence = z.infer<typeof presence>;
 
 // A session's state, which says what it is doing and what the operator can
@@ -191,6 +218,18 @@ export const sessionsQuery = z.object({
 });
 export type SessionsQuery = z.infer<typeof sessionsQuery>;
 
+// A session's presence as the operator's sessions view shows it: with its
+// bridge's latest report while it is connected, absent until one reports.
+export const sessionPresence = presence.extend({
+  monitor: monitorState
+    .optional()
+    .describe(
+      "What the session's bridge last reported of its terminal, while the bridge is connected; " +
+        "absent until one reports.",
+    ),
+});
+export type SessionPresence = z.infer<typeof sessionPresence>;
+
 // A session as the operator's sessions view shows it: its presence; its
 // approved registrations, each by its id and code; its status with the latest
 // entry's note and when that entry was written, absent until it first reports;
@@ -207,7 +246,7 @@ export const sessionSummary = z.object({
   created_at: z.string(),
   group: groupRef.optional(),
   tags: z.array(tagName).max(maxTags),
-  presence,
+  presence: sessionPresence,
   registrations: z.array(
     z.object({ id: registrationId, code: z.string().regex(registrationCodePattern) }),
   ),

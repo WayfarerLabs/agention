@@ -12,6 +12,7 @@ needs before it can merge.
   Version managers such as mise and asdf can read `.node-version` once their idiomatic (legacy)
   version file support is enabled for Node.
 - **Git** and **Bash**.
+- **tmux** 3.3 or later, which the harness observer's tests drive.
 
 Install the locked npm dependencies once, and again whenever `package-lock.json` changes:
 
@@ -38,15 +39,16 @@ Every component is an npm workspace, listed in the root `package.json`, and one 
 `package-lock.json` locks them all. The root `package.json` also holds the repository's own tools:
 TypeScript, Vitest, esbuild, Prettier, markdownlint-cli2 and cspell.
 
-| Workspace                | Package                                          | What it is                                            |
-| ------------------------ | ------------------------------------------------ | ----------------------------------------------------- |
-| `packages/api`           | `@wayfarerlabs/agention-api` (private)           | The API contract: request and response schemas        |
-| `packages/build`         | `@wayfarerlabs/agention-build` (private)         | The bundle build the published packages use           |
-| `packages/private-files` | `@wayfarerlabs/agention-private-files` (private) | The private-file rule the server and the bridge share |
-| `apps/server`            | `@wayfarerlabs/agention`                         | The server and the `agention` operator CLI            |
-| `apps/bridge`            | `@wayfarerlabs/agention-mcp`                     | The agent bridge, the `agention-mcp` command          |
-| `apps/web`               | `@wayfarerlabs/agention-web` (private)           | The React web UI, built with Vite                     |
-| `apps/agent-plugin`      | `@wayfarerlabs/agention-agent-plugin` (private)  | The canonical plugin definition and its generator     |
+| Workspace                   | Package                                             | What it is                                            |
+| --------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `packages/api`              | `@wayfarerlabs/agention-api` (private)              | The API contract: request and response schemas        |
+| `packages/build`            | `@wayfarerlabs/agention-build` (private)            | The bundle build the published packages use           |
+| `packages/private-files`    | `@wayfarerlabs/agention-private-files` (private)    | The private-file rule the server and the bridge share |
+| `packages/harness-observer` | `@wayfarerlabs/agention-harness-observer` (private) | What an agent harness's terminal pane shows           |
+| `apps/server`               | `@wayfarerlabs/agention`                            | The server and the `agention` operator CLI            |
+| `apps/bridge`               | `@wayfarerlabs/agention-mcp`                        | The agent bridge, the `agention-mcp` command          |
+| `apps/web`                  | `@wayfarerlabs/agention-web` (private)              | The React web UI, built with Vite                     |
+| `apps/agent-plugin`         | `@wayfarerlabs/agention-agent-plugin` (private)     | The canonical plugin definition and its generator     |
 
 `@wayfarerlabs/agention-api` has no build step: its `exports` point at its TypeScript source, so a
 workspace that imports it type-checks against the contract itself, and a change to the contract
@@ -146,12 +148,15 @@ npm run -w apps/server typecheck   # tsc --noEmit, for any workspace
 npm run -w apps/web test:browser   # the browser tests, against the server's last build
 ```
 
-The server's and the bridge's tests each run in a `TMPDIR` of their own, and the run fails if they
-leave anything in it (`apps/server/src/test-tmpdir.ts`). A server test takes a temporary directory
-from `testDirectory` (`apps/server/src/test-directory.ts`), which removes it once the test finishes,
-pass or fail, and a test that makes a store or server fixture closes it in `afterEach`, as a bridge
-test closes its `BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
-`agention-tests-*` directory in the outer `TMPDIR`.
+The server's, the bridge's and the harness observer's tests each run in a `TMPDIR` of their own, and
+the run fails if they leave anything in it (`apps/server/src/test-tmpdir.ts`, and its copy in
+`packages/harness-observer/test/tmpdir.ts`, which imports nothing of Agention's). The tests that
+start tmux servers put their sockets there, so they fail at once, saying so, when `TMPDIR` is too
+long for a socket's 107 bytes. A server test takes a temporary directory from `testDirectory`
+(`apps/server/src/test-directory.ts`), which removes it once the test finishes, pass or fail, and a
+test that makes a store or server fixture closes it in `afterEach`, as a bridge test closes its
+`BridgeHarness`. A run that is killed, or a watch session until it exits, leaves its
+`agention-tests-*` or `observer-tests-*` directory in the outer `TMPDIR`.
 
 A store or server fixture's database is a copy of one that each test file's process migrates once
 (`apps/server/src/database/test-database.ts`), so a test pays for no migrations of its own. A test
@@ -345,6 +350,10 @@ gate, which needs the network.
 - A dependency that shapes the architecture or the supply chain (a framework, an authentication or
   storage library) gets an ADR recording the choice and its alternatives.
 - Dependabot proposes weekly updates. Review them like any other change.
+- CI installs tmux, which the harness observer's tests drive, as the runner distribution's own
+  package, from its package archive with `apt-get`, unpinned: the image's Ubuntu release fixes its
+  version line, which the tests need at 3.3 or later, and the distribution's archive signs and
+  patches it.
 - Advisories below the vulnerability gate's threshold that remain, and why:
   - `fast-uri` (`GHSA-w74x-v6f9-j3xg` and `GHSA-wjr9-j795-jxcr`, moderate; `GHSA-xhq7-xmqj-769h` and
     `GHSA-333x-w4r6-6crp`, low), in the copy inlined in `@modelcontextprotocol/server`, which the

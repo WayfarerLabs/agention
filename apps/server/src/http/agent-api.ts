@@ -1,9 +1,15 @@
 import type { RegistrationState } from "@wayfarerlabs/agention-api";
-import { Hono, type MiddlewareHandler } from "hono";
+import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { authenticateAgent, verifyRegistrationToken } from "../auth/agent-tokens.ts";
 import { unauthenticated } from "../errors.ts";
-import { findRegistrationByKey, markSeen, type Store, submitRegistration } from "../store/index.ts";
-import { agentOperations, registration } from "./agent-operations.ts";
+import {
+  findRegistrationByKey,
+  markBackground,
+  markCheckedIn,
+  type Store,
+  submitRegistration,
+} from "../store/index.ts";
+import { agentOperations, backgroundOperations, registration } from "./agent-operations.ts";
 import {
   type AgentApiVersionEnv,
   answerAsStatedVersion,
@@ -23,7 +29,7 @@ export interface AgentApiOptions {
   log: (message: string) => void;
 }
 
-// The least time between two logged failures to mark a session seen.
+// The least time between two logged failures to mark a session's presence.
 export const seenFailureLogInterval = 60_000;
 
 // agentApi is the agent bridge's API, mounted at /api/agent. A request
@@ -35,19 +41,30 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
   const { store, origin, budgets, log } = options;
   const api = new Hono<IdentityEnv & AgentApiVersionEnv>();
 
-  // seen marks the session an approved registration acts for as seen. Last
-  // seen is advisory, so a failure to stamp it is logged and the call goes on.
-  // A failure that lasts, such as a full or busy database, recurs on every
+  // seen marks the presence of the session an approved registration acts
+  // for: connected, for its bridge's background requests, and otherwise its
+  // agent checked in with the agent API version the request states. Presence
+  // is advisory, so a failure to stamp it is logged and the call goes on. A
+  // failure that lasts, such as a full or busy database, recurs on every
   // call, so it is logged at most once a minute, by the store's clock.
   let failureLoggedAt: number | undefined;
-  const seen = (registrationId: number): void => {
+  const seen = (
+    c: Context<IdentityEnv & AgentApiVersionEnv>,
+    registrationId: number,
+    background: boolean,
+  ): void => {
     try {
-      markSeen(store, registrationId);
+      if (background) {
+        markBackground(store, registrationId);
+      } else {
+        // A served version is at most this server's, so it fits a number.
+        markCheckedIn(store, registrationId, Number(c.var.agentApiVersion));
+      }
     } catch (error) {
       const now = store.clock();
       if (failureLoggedAt === undefined || now - failureLoggedAt >= seenFailureLogInterval) {
         failureLoggedAt = now;
-        log(`cannot mark a session seen: ${(error as Error).stack ?? String(error)}`);
+        log(`cannot mark a session's presence: ${(error as Error).stack ?? String(error)}`);
       }
     }
   };
@@ -63,8 +80,9 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
 
   // Registration is the one route a key the operator has not approved may
   // call: the token must be signed by the key it registers. It is the first
-  // call of every conversation, so an approved key's call marks its session
-  // seen.
+  // call of every conversation, so an approved key's call marks its agent
+  // checked in, unless it is its bridge's background read of the
+  // registration's state, which marks its session connected instead.
   api.on(registration.method, registration.path, async (c) => {
     const key = await budgets.spendOnFailure("failedAgentAuth", () =>
       verifyRegistrationToken(c.req.header("authorization"), origin, store.clock()),
@@ -74,33 +92,39 @@ export function agentApi(options: AgentApiOptions): Hono<IdentityEnv & AgentApiV
       budgets.spend("submit");
     } else {
       budgets.spendForKey(key);
-      seen(known.id);
     }
     const input = await parseBody(c, registration.body);
+    if (known !== undefined) {
+      seen(c, known.id, input.background === true);
+    }
     const state: RegistrationState = submitRegistration(store, key, input);
     return c.json(state);
   });
 
   // A failed authentication spends the shared failed-authentication budget;
-  // a key that verifies spends only its own. Every authenticated call marks
-  // its session seen before its own work, so one refused later counts too.
+  // a key that verifies spends only its own.
   const authenticate: MiddlewareHandler<IdentityEnv> = async (c, next) => {
     const { identity, publicKey } = await budgets.spendOnFailure("failedAgentAuth", () =>
       authenticateAgent(store.db, c.req.header("authorization"), origin, store.clock()),
     );
     budgets.spendForKey(publicKey);
-    if (identity.credential.kind === "registration") {
-      seen(identity.credential.registrationId);
-    }
     c.set("identity", identity);
     await next();
   };
   api.use("/s/*", authenticate);
+  // Every operation marks its session's presence before its own work, so one
+  // refused later counts too.
   addOperations(api, agentOperations, {
     store,
     shutdown: options.shutdown,
     log,
-    authenticate: (c) => c.var.identity,
+    authenticate: (c, operation) => {
+      const { identity } = c.var;
+      if (identity.credential.kind === "registration") {
+        seen(c, identity.credential.registrationId, backgroundOperations.has(operation.name));
+      }
+      return identity;
+    },
   });
   return api;
 }

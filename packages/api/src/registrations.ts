@@ -29,8 +29,17 @@ export const registrationCodePattern = /^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z
 export const registrationStatus = z.enum(["pending", "expired", "approved", "rejected", "revoked"]);
 export type RegistrationStatus = z.infer<typeof registrationStatus>;
 
-// The agent and session names an agent proposes when it registers its key.
-export const registrationSubmitInput = z.object({ agent: name, session: name });
+// The agent and session names an agent proposes when it registers its key,
+// and whether the request is its bridge's background one, reading the
+// registration's state while it waits for approval. A background request
+// only reads: for a key no registration has, it registers nothing and
+// answers not_found. An approved key's background request marks its session
+// connected, and any other request marks its agent checked in.
+export const registrationSubmitInput = z.object({
+  agent: name,
+  session: name,
+  background: z.boolean().optional(),
+});
 export type RegistrationSubmitInput = z.infer<typeof registrationSubmitInput>;
 
 // A registration's state, as the agent sees it; the granted names appear once

@@ -38,14 +38,22 @@ import { registerFileTools } from "./file-tools.ts";
 import { answerThatFits, maxResultBytes, trimMissed } from "./fit.ts";
 import type { SessionKey } from "./key-file.ts";
 import { unknownField, unknownFieldBody } from "./known-fields.ts";
+import type { Reporter } from "./reporter.ts";
 import type { Session } from "./session.ts";
 import { maxReminderBytes, type StatusReminder } from "./status-reminder.ts";
 
 // What the tools act through: the server's API, the session, the home
-// directory the bridge keeps its files under and what reminds the agent to
-// report the session's status, or why the bridge cannot reach them.
+// directory the bridge keeps its files under, what reminds the agent to
+// report the session's status and the reporter that monitors it in the
+// background, or why the bridge cannot reach them.
 export type Connection =
-  | { api: AgentApi; session: Session; home: string; statusReminder: StatusReminder }
+  | {
+      api: AgentApi;
+      session: Session;
+      home: string;
+      statusReminder: StatusReminder;
+      reporter: Reporter;
+    }
   | { problem: BridgeError };
 export type Connected = Exclude<Connection, { problem: BridgeError }>;
 
@@ -195,10 +203,13 @@ export function registerTools(server: McpServer, connection: Connection): void {
   };
 
   // inSession gives what a request in the session needs: the names the
-  // operator granted, and the key now on disk to sign it.
+  // operator granted, and the key now on disk to sign it. A call that finds
+  // them starts the reporter where it is not running, as in a bridge started
+  // before the session's key was on disk, or one another bridge replaced.
   const inSession = async (signal: AbortSignal): Promise<InSession> => {
-    const { api, session } = connected();
+    const { api, session, reporter } = connected();
     const { key, granted } = await session.credential(signal);
+    reporter.resume();
     return { api, key, sessionPath: `/s/${granted.agent}/${granted.session}` };
   };
 
@@ -253,7 +264,14 @@ export function registerTools(server: McpServer, connection: Connection): void {
       "message says what to do next, including the names to pass when you come back and, " +
       "once approved, how answers reach you.",
     registerInput,
-    (input, signal) => connected().session.register(input, signal),
+    // register starts the reporter, which monitors the session once the
+    // operator approves it, with no further tool call.
+    async (input, signal) => {
+      const { session, reporter } = connected();
+      const answer = await session.register(input, signal);
+      reporter.start();
+      return answer;
+    },
   );
 
   tool(

@@ -678,4 +678,36 @@ export const migrations: readonly string[] = [
     SELECT RAISE(ABORT, 'message links are append-only');
   END;
   `,
+  `
+  -- Monitoring. last_seen_at is now when the session's agent last checked
+  -- in, any call but its bridge's background ones, and last_seen_version the
+  -- agent API version of the call that stamped it, null for a stamp made
+  -- before this migration, which came from a version below 8. background_at
+  -- is when its bridge last made a background request, null until one does.
+  ALTER TABLE sessions ADD COLUMN last_seen_version INTEGER CHECK (last_seen_version >= 1);
+  ALTER TABLE sessions ADD COLUMN background_at INTEGER;
+
+  -- The latest report of a session's bridge, which replaces the one before
+  -- it: whether it monitors a pane, and while it does, the profile it reads
+  -- it with, the session's condition and since when, and what stopped it at
+  -- rest, with when a usage limit resets where the host shows it. Profiles
+  -- are added as harnesses are, so a profile's name is checked where the
+  -- report arrives, not here.
+  CREATE TABLE monitor_reports (
+    session_id INTEGER PRIMARY KEY REFERENCES sessions (id),
+    monitored INTEGER NOT NULL CHECK (monitored IN (0, 1)),
+    profile TEXT,
+    condition TEXT CHECK (condition IN
+      ('unknown', 'permission_prompt', 'other_prompt', 'running', 'at_prompt', 'waiting')),
+    since INTEGER,
+    stopped_by TEXT CHECK (stopped_by IN ('usage_limit', 'block', 'error')),
+    resets_at INTEGER,
+    CHECK (monitored = (profile IS NOT NULL)),
+    CHECK (monitored = (condition IS NOT NULL)),
+    CHECK (monitored = (since IS NOT NULL)),
+    CHECK (stopped_by IS NULL OR condition IN
+      ('permission_prompt', 'other_prompt', 'at_prompt', 'waiting')),
+    CHECK (resets_at IS NULL OR stopped_by IS 'usage_limit')
+  ) STRICT;
+  `,
 ];

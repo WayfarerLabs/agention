@@ -109,8 +109,8 @@ const listParts = {
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
-  // stranded, while the session is quiet, has no active credential or has
-  // stopped.
+  // stranded, while the session is quiet, has no active credential, is not
+  // connected or has stopped.
   agent_read: {
     keeps: "IIF(:agent_read = 'stranded', th.stranded, th.unread_by_other)",
     on: (query) => query.agent_read !== undefined,
@@ -917,6 +917,7 @@ interface GroupRow {
   archived: number;
   last_seen_at: number | null;
   quiet: number;
+  connected: number | null;
   // The place of the group's first thread in the list.
   place: number;
 }
@@ -946,6 +947,7 @@ function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGroupin
        min(th.archived) AS archived,
        max(th.last_seen_at) AS last_seen_at,
        max(th.quiet) AS quiet,
+       max(th.connected) AS connected,
        min(th.place) AS place
      FROM (SELECT ranked.*, row_number() OVER (ORDER BY ${listOrder}) AS place FROM ranked) th
      JOIN threads t ON t.id = th.id
@@ -998,6 +1000,9 @@ function rollUpGroups(reach: Reach, query: ThreadsQuery, grouping: ThreadGroupin
           ? {}
           : { last_seen_at: formatTimestamp(first.last_seen_at) }),
         quiet: first?.quiet === 1,
+        ...(first === undefined || first.connected === null
+          ? {}
+          : { connected: first.connected === 1 }),
       },
     };
     if (!byTopic) {

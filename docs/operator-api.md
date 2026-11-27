@@ -46,12 +46,14 @@ curl -sS -H @<(auth) "$origin/api/operator/v1/wait?wait=25"
 key out of every command's arguments: anyone on the machine can read those in the process list while
 the command runs.
 
-The first request lists your agents with their sessions. The second answers at once with the
-threads, in any session, holding messages you have not read, each naming its agent and session; with
-none, it waits up to 25 seconds for one. Its answer holds a `since`: pass that back, as
-`wait?wait=25&since=...`, to hear only of newer messages. A program waiting in a loop then hears of
-each new message once, as soon as it arrives, without polling. A key holds at most 4 of these waits
-at once, so wait again once one answers rather than opening another beside it.
+The first request lists your agents with their sessions, each with its `presence` and, while its
+bridge is connected, its `monitor`, what the bridge last reported of the session's terminal; the
+[reference](#reference) gives their fields. The second answers at once with the threads, in any
+session, holding messages you have not read, each naming its agent and session; with none, it waits
+up to 25 seconds for one. Its answer holds a `since`: pass that back, as `wait?wait=25&since=...`,
+to hear only of newer messages. A program waiting in a loop then hears of each new message once, as
+soon as it arrives, without polling. A key holds at most 4 of these waits at once, so wait again
+once one answers rather than opening another beside it.
 
 ## Files
 

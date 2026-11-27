@@ -109,12 +109,69 @@ export class Session {
     };
   }
 
+  // fixStoredDefault fixes the session's names to the default session's, the
+  // one the environment names, when its key is on disk, and says whether it
+  // did, so a bridge started again for that session can report before any
+  // tool call. It makes no request and never creates a key. Otherwise it
+  // leaves the names unfixed, for register to give: when the names are fixed
+  // already, the variables name no session, there is no key, or the key file
+  // cannot be read, which the next tool call reports to the agent.
+  fixStoredDefault(): boolean {
+    if (this.#proposed !== undefined) {
+      return false;
+    }
+    try {
+      const agent = this.#fromEnvironment("AGENTWORKS_AGENT");
+      const session = this.#fromEnvironment("AGENTWORKS_SESSION");
+      if (agent === undefined || session === undefined) {
+        return false;
+      }
+      const names = { agent, session };
+      const keyFile = new KeyFile(this.#home, this.#api.origin, names);
+      if (keyFile.read() === undefined) {
+        return false;
+      }
+      this.#proposed = { names, keyFile };
+      return true;
+    } catch (error) {
+      if (error instanceof BridgeError) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  // storedKey returns the key on disk once the session's names are fixed, or
+  // undefined before then or while there is none. It never creates one.
+  storedKey(): SessionKey | undefined {
+    return this.#proposed?.keyFile.read();
+  }
+
+  // stateOf reads the state of a key's registration with the request register
+  // makes, marked as the bridge's background request, and learns the names
+  // granted to it. It creates nothing: for a key no registration has, the
+  // server answers not_found. Only a key on disk, from storedKey, is given,
+  // once the names are fixed.
+  async stateOf(key: SessionKey, signal?: AbortSignal): Promise<RegistrationState> {
+    if (this.#proposed === undefined) {
+      throw new Error("the session's names are not fixed");
+    }
+    const state = await this.#submit(key, this.#proposed.names, signal, true);
+    this.#learn(key, state);
+    return state;
+  }
+
   // credential returns the key to sign a thread request with and the names of
   // the session the request acts in, as the operator granted them. When the
   // bridge does not know the names granted to the key on disk, it asks with
   // the request register makes, which for a key the server knows creates
-  // nothing. It never creates or replaces a key.
-  async credential(signal?: AbortSignal): Promise<{ key: SessionKey; granted: SessionNames }> {
+  // nothing, marked as the bridge's background request when it is made for
+  // one, which creates nothing for any key. It never creates or replaces a
+  // key.
+  async credential(
+    signal?: AbortSignal,
+    background = false,
+  ): Promise<{ key: SessionKey; granted: SessionNames }> {
     const { names, keyFile } = this.#fix({});
     const key = keyFile.read();
     if (key === undefined) {
@@ -123,7 +180,7 @@ export class Session {
     if (this.#granted?.key === key.publicKey) {
       return { key, granted: this.#granted.names };
     }
-    const state = await this.#submit(key, names, signal);
+    const state = await this.#submit(key, names, signal, background);
     const granted = this.#learn(key, state);
     if (granted === undefined) {
       throw ApiFailure.of("unauthenticated", this.#notApproved(names, state));
@@ -183,15 +240,19 @@ export class Session {
     return parsed.data;
   }
 
+  // submit makes the request register makes. A background one, the bridge's
+  // own rather than the agent's, marks the session connected and never its
+  // agent checked in, and registers no key the server does not know.
   async #submit(
     key: SessionKey,
     names: SessionNames,
     signal?: AbortSignal,
+    background = false,
   ): Promise<RegistrationState> {
     const answer = await this.#api.request(key, {
       method: "POST",
       path: "/registrations",
-      body: names,
+      body: background ? { ...names, background } : names,
       ...(signal === undefined ? {} : { signal }),
     });
     const parsed = registrationState.safeParse(answer);

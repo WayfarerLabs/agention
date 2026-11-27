@@ -35,6 +35,10 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
+      # The harness observer's tests drive a real tmux server.
+      - name: Install tmux
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tmux
+
       # The browser gate needs Chromium's headless shell, which lifecycle
       # scripts cannot install, at the version the lockfile pins, with the
       # system libraries it needs. Playwright runs only once the registry
@@ -70,6 +74,10 @@ jobs:
         with:
           node-version: 24.22.3
           cache: npm
+
+      # The harness observer's tests drive a real tmux server.
+      - name: Install tmux
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tmux
 
       - name: scripts/check.sh --fast
         env:

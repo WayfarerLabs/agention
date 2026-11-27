@@ -33,6 +33,7 @@
     "@wayfarerlabs/agention": "*",
     "@wayfarerlabs/agention-api": "*",
     "@wayfarerlabs/agention-build": "*",
+    "@wayfarerlabs/agention-harness-observer": "*",
     "@wayfarerlabs/agention-private-files": "*",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",

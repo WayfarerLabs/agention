@@ -8,6 +8,7 @@
     "packages/api",
     "packages/build",
     "packages/private-files",
+    "packages/harness-observer",
     "apps/server",
     "apps/bridge",
     "apps/web",

@@ -180,13 +180,13 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   does, **Overdue since** then. Holding the pointer over the time shows it in full. A stranded
   thread shows a **Stranded** tag in the warning's color, as the sessions view flags stranded
   threads, saying why: its session **stopped**, with how; it is quiet, **last seen** when, or
-  **never seen**; or it has **no active credential**. A session with no active credential also shows
-  its own tag, unless the stranded tag already says so. When the thread's messages name one GitHub
-  pull request or branch, it shows beneath, beside the same icon of two lines merging into one, by
-  its short form, which adds it to the filters on, keeping the others, the order and the grouping;
-  its link to GitHub is on the thread's page. When they name two or more, that icon among the row's
-  marks says how many, which a screen reader says in full, such as **2 pull requests, 1 branch**,
-  and the thread's head lists them.
+  **never seen**; it has **no active credential**; or its bridge is **not connected**. A session
+  with no active credential also shows its own tag, unless the stranded tag already says so. When
+  the thread's messages name one GitHub pull request or branch, it shows beneath, beside the same
+  icon of two lines merging into one, by its short form, which adds it to the filters on, keeping
+  the others, the order and the grouping; its link to GitHub is on the thread's page. When they name
+  two or more, that icon among the row's marks says how many, which a screen reader says in full,
+  such as **2 pull requests, 1 branch**, and the thread's head lists them.
 - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
   leaving out those under a folded header, as **Select all** does. It stays in view as the list
   scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -243,11 +243,11 @@ Under it, its agent, session and topic say where the thread is, and each opens t
 it alone, with no other filter on, showing everything there in the order and grouping you left the
 list in. Beneath, muted, a thread whose asks were answered or withdrawn says so, as its row does,
 and a stranded thread says why its session has not read your latest messages: it stopped, and how,
-or its agent was last seen when, or never; a session with no active credential says so in a notice
-under the head. **Threads** stays marked in the navigation. The head holds **Jump to unread** while
-anything is unread or an ask is open to you. The messages open on the newest ones, or on the first
-one you had not read after those you archived when that comes before them, and show earlier and
-later ones when you ask.
+its agent was last seen when, or never, or its bridge is not connected; a session with no active
+credential says so in a notice under the head. **Threads** stays marked in the navigation. The head
+holds **Jump to unread** while anything is unread or an ask is open to you. The messages open on the
+newest ones, or on the first one you had not read after those you archived when that comes before
+them, and show earlier and later ones when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,
@@ -550,10 +550,11 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   you discard it, then starts the thread and opens it; while it is on its way the sheet stays as it
   is. **Cancel**, or leaving the sheet any other way, removes the files it uploaded. The session's
   agent reads it as your words at its terminal and replies in it; the thread asks you nothing, since
-  only agents ask. When the session has stopped, is quiet or has no active credential, the sheet
-  says it is not likely to see the thread, and why: a stopped session not until it is started again,
-  a quiet one not soon, and one without a credential not until you approve a registration for it.
-  The thread is stranded until the session reads it.
+  only agents ask. When the session has stopped, is quiet, has no active credential or is not
+  connected, the sheet says it is not likely to see the thread, and why: a stopped session not until
+  it is started again, a quiet one not soon, one without a credential not until you approve a
+  registration for it, and one whose bridge is not connected not until it connects again. The thread
+  is stranded until the session reads it.
 
 - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
   page's address keeps your choice, so going back to the view or a link to it shows it the same.

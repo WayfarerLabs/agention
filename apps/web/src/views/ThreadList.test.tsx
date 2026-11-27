@@ -239,7 +239,7 @@ describe("the thread list", () => {
     expect(status("Pick a database")).toBeNull();
   });
 
-  it("marks every stranded thread with why: its session stopped, is quiet or has no credential", async () => {
+  it("marks every stranded thread with why: its session stopped, is quiet, has no credential or is not connected", async () => {
     const lastSeen = "2026-10-27T09:00:00.000Z";
     const quiet = { last_seen_at: lastSeen, quiet: true };
     serve([
@@ -260,6 +260,12 @@ describe("the thread list", () => {
         stranded: true,
         presence: { ...quiet, state: "stopped", outcome: "stalled" },
       }),
+      threadSummary({
+        number: 7,
+        title: "Disconnected",
+        stranded: true,
+        presence: { last_seen_at: lastSeen, quiet: false, connected: false },
+      }),
     ]);
     renderAt("/");
     await screen.findByText("Quiet");
@@ -279,8 +285,11 @@ describe("the thread list", () => {
     expect(stranded("Revoked long ago")).toContain(sinceTime(lastSeen));
     expect(row("Revoked long ago").getByText("No active credential")).toBeTruthy();
     expect(stranded("Fine")).toBeUndefined();
+    // A session whose bridge is not connected says so rather than nothing.
+    expect(stranded("Disconnected")).not.toBe("Stranded");
+    expect(stranded("Disconnected")).not.toContain(sinceTime(lastSeen));
     // Stranded shows in the warning's tone, as the sessions view flags it.
-    for (const name of ["Quiet", "Never seen", "Stalled", "Just revoked"]) {
+    for (const name of ["Quiet", "Never seen", "Stalled", "Just revoked", "Disconnected"]) {
       expect(
         row(name)
           .getByText(/^Stranded/)
