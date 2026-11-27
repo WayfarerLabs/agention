@@ -173,13 +173,17 @@ Each nudge ends in one outcome (N6), which `nudge()` returns with the step it en
 
 - **Deferred**: nothing was pasted; or, at a confirmation, the line held exactly the nudge's own
   text but the rest of the screen had changed, and the nudge took that text back, one confirmed
-  Backspace at a time; or the line had come empty with no key typed, the harness having taken or
-  cleared it. Only the line and the cursor are compared for the warning and the message themselves;
+  Backspace at a time; or, before Enter, the line read empty or out of sight with no key typed and
+  read empty again half a second later, since a paste can show late; or, before Enter, the pane or
+  profile failed and a fresh reading then showed the line empty, any text of the nudge's own taken
+  back first. Only the line and the cursor are compared for the warning and the message themselves;
   a change elsewhere is what takes the text back, never what fails the nudge.
 - **Stopped**: a key was typed since the nudge began, or the line held something other than the
   nudge's text, or its text altered.
-- **Failed**: the pane could not be read or written; a Backspace did not shorten the line by one;
-  the message did not show exactly; or the host did not take it after Enter.
+- **Failed**: the pane could not be read or written and the nudge's own text could not be shown
+  gone; the line stayed out of sight; a Backspace did not shorten the line by one; the message did
+  not show exactly; anything went wrong once Enter was sent, since the host may have taken the
+  message; or the host did not take it after Enter.
 - **Sent**: the host took the message.
 
 Only Backspace and Enter are ever sent, never an ordinary character or Escape (the spike), and each
@@ -335,14 +339,15 @@ words plus the nudge marker and the attempt's id, drawn from a cryptographic ran
 claim as `begin`, and a signal it aborts when it is replaced or stops. A deferral before any claim
 is retried about once a second from the pane alone until the observer is ready or a poll says the
 nudge lapsed; one held off by nudge text at the prompt is also reported as `nudge_text_left` until
-the line clears. Every claimed attempt's outcome is sent, a deferred one releasing the claim. The
-bridge's log names each attempt's id, outcome and step, never pane text. A bridge whose claim or
-outcome the server refuses as invalid stops nudging until it restarts, and reports that the session
-cannot be nudged, so it cannot loop. A session whose profile is generic cannot be nudged: a generic
-profile cannot tell a draft on the input line from its prompt, and N2 and N5 allow nothing on the
-line but the nudge's own text. T1's `register` answer carries how answers reach the agent
-(`answers`: `nudge` or `check`), so the usage skill can point at it; it and the skill come with this
-delivery.
+the line clears. Every claimed attempt's outcome is sent, a deferred one releasing the claim, and
+claimed attempts deferred in a row back off, from a second doubling to a minute, until one settles
+otherwise. The bridge's log names each attempt's id, outcome and step, never pane text. A bridge
+whose claim or outcome the server refuses as invalid stops nudging until it restarts, and reports
+that the session cannot be nudged, so it cannot loop. A session whose profile is generic cannot be
+nudged: a generic profile cannot tell a draft on the input line from its prompt, and N2 and N5 allow
+nothing on the line but the nudge's own text. T1's `register` answer carries how answers reach the
+agent (`answers`: `nudge` or `check`), so the usage skill can point at it; it and the skill come
+with this delivery.
 
 ## Configuration
 
@@ -360,17 +365,17 @@ they are set by hand.
 
 What goes wrong, and where it shows (CF4):
 
-| Case                                           | Log                  | `register` answer           | Condition | Reason on the session |
-| ---------------------------------------------- | -------------------- | --------------------------- | --------- | --------------------- |
-| No nudge type                                  | nothing              | answers arrive when checked | as read   | `nudge_off`           |
-| No socket                                      | nothing              | answers arrive when checked | none      | `no_socket`           |
-| Socket unreachable, path too long, or no tmux  | the error, once      | answers arrive when checked | unknown   | `pane_unreachable`    |
-| More than one pane, or the host lacks the pane | once                 | answers arrive when checked | unknown   | `not_one_pane`        |
-| Unknown profile name                           | once; strict generic | answers arrive when checked | as read   | `unknown_profile`     |
-| A generic profile                              | nothing              | answers arrive when checked | as read   | `generic_profile`     |
-| Unknown nudge type                             | once; nudge off      | answers arrive when checked | as read   | `unknown_nudge_type`  |
-| Nudge text left at the prompt                  | once, with the id    | (arises later)              | as read   | `nudge_text_left`     |
-| A claim or outcome refused as invalid          | once; nudge off      | (arises later)              | as read   | `claims_refused`      |
+| Case                                           | Log                     | `register` answer           | Condition | Reason on the session |
+| ---------------------------------------------- | ----------------------- | --------------------------- | --------- | --------------------- |
+| No nudge type                                  | nothing                 | answers arrive when checked | as read   | `nudge_off`           |
+| No socket                                      | nothing                 | answers arrive when checked | none      | `no_socket`           |
+| Socket unreachable, path too long, or no tmux  | the error, once         | answers arrive when checked | unknown   | `pane_unreachable`    |
+| More than one pane, or the host lacks the pane | once                    | answers arrive when checked | unknown   | `not_one_pane`        |
+| Unknown profile name                           | once; strict generic    | answers arrive when checked | as read   | `unknown_profile`     |
+| A generic profile                              | nothing                 | answers arrive when checked | as read   | `generic_profile`     |
+| Unknown nudge type                             | once; nudge off         | answers arrive when checked | as read   | `unknown_nudge_type`  |
+| Nudge text left at the prompt                  | once, naming no attempt | (arises later)              | as read   | `nudge_text_left`     |
+| A claim or outcome refused as invalid          | once; nudge off         | (arises later)              | as read   | `claims_refused`      |
 
 Every case that arises after the bridge starts, a pane becoming unreachable among them, shows on the
 session as it arises; the agent is not told (ruling 9). The tools work as without monitoring in
