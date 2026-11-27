@@ -586,8 +586,9 @@ one in Claude Code's vim normal mode, where Backspace moves the cursor rather th
 what it could not remove in the input line, never submitted; where its terminal failed, it stops as
 a failed check at that step would: the warning stays, and the message is removed if the line still
 holds exactly that. A bridge that another takes over from, or that closes, mid-nudge presses no key
-more, so it can leave the warning, or the message not yet submitted, in the input line, and no
-further nudge comes until you clear the line.
+more, so it can leave the warning, or the message not yet submitted, in the input line. Its claim
+still stands, so no further nudge comes until the agent checks in, and then not until the line is
+clear.
 
 A session is nudged at most once until its agent next checks in, whether that nudge was sent or not.
 Check-ins count to the minute, so an agent that checks in within a minute after you write, without

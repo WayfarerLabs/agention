@@ -17,32 +17,32 @@ import {
 } from "./sessions/Registrations.tsx";
 import { type Organizing, SessionFolds, SessionsHead } from "./sessions/SessionFolds.tsx";
 
-// The sessions view: every session the operator's agents run, in one view.
-// Top to bottom: the registrations waiting for approval, their section one
-// muted line while none waits, or explaining how one arrives until some agent
-// has a session; the agents and their sessions, under a head choosing how
-// they are grouped and sorted (sessions/arrangement.ts), as the thread list's
-// head does, which the address keeps, with the chip of its one filter, Needs
-// you, while it is on (sessions/needs-you.tsx); and, folded, the credentials
-// and past requests. By default, once some session is in a group, the agents
-// fold under their groups, in the operator's order, which each group's head
-// moves, and no group last, an agent with sessions in two groups coming under
-// each with that group's sessions alone; until then, and grouped by agent,
-// each agent folds under its header, rolling up its sessions' threads, open
-// asks, unread updates and stranded and ignored threads, with links to its
-// threads and to its stranded and its ignored threads, its tags and a menu
-// setting them, over a folded row for each of its sessions; grouped by
-// session, the rows stand alone. Every chip that stands for threads, the
-// names of groups, agents and sessions among them, links to those threads on
-// the thread list, and following one never folds anything; a header's
-// chevron folds it, as a click on the rest of its bar does. The view reads every session before it shows any, so it
+// The sessions view: every session the operator's agents run, in one view. Top
+// to bottom: the registrations waiting for approval, their section one muted
+// line while none waits, or explaining how one arrives until some agent has a
+// session; the agents and their sessions, under a head choosing how they are
+// grouped and sorted (sessions/arrangement.ts), as the thread list's head does,
+// which the address keeps, with the chip of its one filter, Needs you, while it
+// is on (sessions/needs-you.tsx); and, folded, the credentials and past
+// requests. By default, once some session is in a group, the agents fold under
+// their groups, in the operator's order, which each group's head moves, and no
+// group last, an agent with sessions in two groups coming under each with that
+// group's sessions alone; until then, and grouped by agent, each agent folds
+// under its header, rolling up its sessions' threads, open asks, unread updates
+// and stranded and ignored threads, with links to its threads and to its
+// stranded and its ignored threads, its tags and a menu setting them, over a
+// folded row for each of its sessions; grouped by session, the rows stand
+// alone. Every chip that stands for threads, the names of groups, agents and
+// sessions among them, links to those threads on the thread list, and following
+// one never folds anything; a header's chevron folds it, as a click on the rest
+// of its bar does. The view reads every session before it shows any, so it
 // arranges them whole. It refreshes as every view does. The operator's groups
-// and tags load beside the sessions, for their colors and the groups' order;
-// a session's group and an agent's or a session's tags are picked from their
+// and tags load beside the sessions, for their colors and the groups' order; a
+// session's group and an agent's or a session's tags are picked from their
 // options menus, each pick applied at once. This browser keeps the groups and
 // agents it folds and whether the past requests are shown; a session's row
-// starts folded on every visit. What a fold hides is not loaded, so a
-// session's log loads and is read only while its row is unfolded and shown.
+// starts folded on every visit. What a fold hides is not loaded, so a session's
+// log loads and is read only while its row is unfolded and shown.
 
 // Where this browser keeps its folds: the groups and agents folded, and the
 // sections unfolded.

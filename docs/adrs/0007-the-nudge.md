@@ -30,19 +30,19 @@ every check that can be made before each key.
 - **The server decides when, from what it stores, and the bridge claims it.** A nudge is due when
   the session's bridge last reported that it can be nudged and that it is at its prompt, not stopped
   by a usage limit whose reset is unknown or still to come; one of its threads holds a message by
-  anyone but its agent that the agent has not read, written after the agent's last check-in; and no
-  nudge was claimed since that check-in. Working that out writes nothing. The bridge's background
-  poll says whether one is due, and nothing more: no thread, message or presence reaches it. The
-  poll is level-triggered: the bridge says whether it already knows one is due, and the server
-  answers at once only when that differs, so a bridge told one is due holds its poll while it still
-  is. The poll is woken by what can make one due: a report that leaves the session ready for one,
-  and a message. What ends one being due wakes nothing, since the claim checks again. Before it puts
-  anything in the pane, the bridge claims the nudge: in one transaction the server checks that the
-  bridge acts for the session and that one is due, and records the claim, by its own clock, as the
-  session's latest nudge. The rule and the claim read only the session's rows, so a session is
-  nudged at most once until its agent checks in, whether the nudge was sent or not, across a server
-  restart, a bridge restart and the takeover of ADR 0006's one acting bridge, even one in the middle
-  of a nudge.
+  anyone but its agent that the agent has neither read nor archived, written after the agent's last
+  check-in; and no nudge was claimed since that check-in. Working that out writes nothing. The
+  bridge's background poll says whether one is due, and nothing more: no thread, message or presence
+  reaches it. The poll is level-triggered: the bridge says whether it already knows one is due, and
+  the server answers at once only when that differs, so a bridge told one is due holds its poll
+  while it still is. The poll is woken by what can make one due: a report that leaves the session
+  ready for one, and a message. What ends one being due wakes nothing, since the claim checks again.
+  Before it puts anything in the pane, the bridge claims the nudge: in one transaction the server
+  checks that the bridge acts for the session and that one is due, and records the claim, by its own
+  clock, as the session's latest nudge. The rule and the claim read only the session's rows, so a
+  session is nudged at most once until its agent checks in, whether the nudge was sent or not,
+  across a server restart, a bridge restart and the takeover of ADR 0006's one acting bridge, even
+  one in the middle of a nudge.
 - **The texts are the bridge's own.** A nudge puts two texts in the pane: a warning that a nudge is
   coming and that typing anything stops it, ending with a token drawn from a cryptographic random
   source for that nudge alone, and then one fixed message telling the agent to check in with
