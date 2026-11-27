@@ -30,10 +30,11 @@ export const connectedFor = 60_000;
 // its last check-in a minute or more, when its last check-in is after now,
 // so a clock stepped back never holds it still, when the version differs
 // from the last one's, so a session pinned to an older bridge is read by its
-// rule at once, or when its last check-in is before any of these: the latest
-// message someone other than the agent wrote in one of its threads, the
-// claim of a nudge under way (claimNudge) or the latest nudge. So a call
-// after a message always counts as checking in since it, and a check-in
+// rule at once, or when its last check-in is before either of these: the
+// latest message someone other than the agent wrote in one of its threads,
+// and when its latest nudge was claimed, under way or settled
+// (latestClaimOf). So a call after a message always counts as checking in
+// since it, and a check-in
 // during a nudge, or in reply to one, always shows, at the cost of one stamp
 // more for each message and claim; an orphan a bridge left (settleOrphan)
 // needs no clause of its own, since its claim came after a message the
@@ -54,8 +55,7 @@ export function markCheckedIn(store: Store, registrationId: number, version: num
            SELECT session_id FROM registrations WHERE id = :registration AND status = 'approved'
          )
          AND (last_seen_at IS NULL OR last_seen_at <= :now - :step OR last_seen_at > :now
-           OR last_seen_version IS NOT :version OR last_seen_at < nudge_claimed_at
-           OR last_seen_at < nudged_at
+           OR last_seen_version IS NOT :version OR last_seen_at < ${latestClaimOf("sessions")}
            OR last_seen_at < (
              SELECT m.created_at FROM messages m
              WHERE m.session_id = sessions.id
@@ -64,6 +64,14 @@ export function markCheckedIn(store: Store, registrationId: number, version: num
            ))`,
     ).run({ now: store.clock(), registration: registrationId, step: seenStep, version });
   });
+}
+
+// latestClaimOf says, for the sessions read as sessions, when their latest
+// nudge was claimed: the claim under way, where there is one, which always
+// comes after the nudge settled before it, and otherwise the latest nudge;
+// null until a bridge first claims one.
+export function latestClaimOf(sessions: string): string {
+  return `COALESCE(${sessions}.nudge_claimed_at, ${sessions}.nudged_at)`;
 }
 
 // markBackground stamps the session a registration acts for as connected

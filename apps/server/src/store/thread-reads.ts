@@ -26,7 +26,7 @@ import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
 import { authorOf } from "./directory.ts";
-import { connectedFor, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
+import { connectedFor, latestClaimOf, type PresenceRow, presenceOf, seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
 // Reads of threads and messages, as a viewer sees them now. Everything about a
@@ -112,9 +112,8 @@ export function nudgeDueSince(sessions: string): string {
     LEFT JOIN thread_marks agent_mark ON agent_mark.actor_id = agent.id
       AND agent_mark.thread_id = due_thread.id
     WHERE due_thread.session_id = ${sessions}.id
-      AND (${sessions}.nudge_claimed_at IS NULL
-        OR ${sessions}.nudge_claimed_at <= ${sessions}.last_seen_at)
-      AND (${sessions}.nudged_at IS NULL OR ${sessions}.nudged_at <= ${sessions}.last_seen_at)
+      AND (${latestClaimOf(sessions)} IS NULL
+        OR ${latestClaimOf(sessions)} <= ${sessions}.last_seen_at)
       AND due.seq > max(COALESCE(agent_mark.read_seq, 0), COALESCE(agent_mark.archived_seq, 0))
       AND (${sessions}.last_seen_at IS NULL OR due.created_at > ${sessions}.last_seen_at)
   )`;

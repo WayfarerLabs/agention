@@ -163,39 +163,41 @@ export function recordNudgeOutcome(
   outcome: NudgeOutcome,
 ): MonitorNudgeAnswer {
   return forActingBridge(store, identity, target, query, (db, sessionId) => {
-    const claimed = db
-      .prepare("SELECT 1 FROM sessions WHERE id = ? AND nudge_claim_id IS ?")
-      .get(sessionId, id);
-    if (claimed === undefined) {
-      return { go: false, wakes: false };
-    }
     if (outcome === "deferred") {
-      releaseClaim(db, sessionId);
-      return { go: false, wakes: true };
+      return { go: false, wakes: releaseClaim(db, sessionId, id) };
     }
-    settleClaim(db, sessionId, outcome);
+    settleClaim(db, sessionId, id, outcome);
     return { go: false, wakes: false };
   });
 }
 
-// settleClaim makes the session's claim, if any, its latest nudge, with how it
-// ended, and clears the claim.
-function settleClaim(db: Database, sessionId: number, outcome: Exclude<NudgeOutcome, "deferred">) {
+// settleClaim makes the session's claim under way by the attempt id names, if
+// it is, its latest nudge, with how it ended, and clears the claim.
+function settleClaim(
+  db: Database,
+  sessionId: number,
+  id: string,
+  outcome: Exclude<NudgeOutcome, "deferred">,
+): void {
   db.prepare(
     `UPDATE sessions SET nudged_at = nudge_claimed_at, nudge_id = nudge_claim_id,
        nudge_outcome = :outcome, nudge_claimed_at = NULL, nudge_claim_id = NULL,
        nudge_claim_bridge = NULL
-     WHERE id = :session AND nudge_claimed_at IS NOT NULL`,
-  ).run({ session: sessionId, outcome });
+     WHERE id = :session AND nudge_claim_id = :id`,
+  ).run({ session: sessionId, id, outcome });
 }
 
-// releaseClaim clears the session's claim, leaving the latest nudge as it
-// was.
-function releaseClaim(db: Database, sessionId: number) {
-  db.prepare(
-    `UPDATE sessions SET nudge_claimed_at = NULL, nudge_claim_id = NULL, nudge_claim_bridge = NULL
-     WHERE id = ?`,
-  ).run(sessionId);
+// releaseClaim clears the session's claim under way by the attempt id names,
+// if it is, leaving the latest nudge as it was, and says whether it was.
+function releaseClaim(db: Database, sessionId: number, id: string): boolean {
+  const { changes } = db
+    .prepare(
+      `UPDATE sessions SET nudge_claimed_at = NULL, nudge_claim_id = NULL,
+         nudge_claim_bridge = NULL
+       WHERE id = ? AND nudge_claim_id = ?`,
+    )
+    .run(sessionId, id);
+  return changes > 0;
 }
 
 // settleOrphan settles the session's claim under way where its bridge left
@@ -213,24 +215,24 @@ function releaseClaim(db: Database, sessionId: number) {
 function settleOrphan(db: Database, sessionId: number, actingBridge?: string): boolean {
   const orphan = db
     .prepare(
-      `SELECT nudge_orphan_claimed_at > COALESCE(last_seen_at, -1) AS again FROM sessions
-       WHERE id = :session AND nudge_claimed_at IS NOT NULL
+      `SELECT nudge_claim_id AS id, nudge_orphan_claimed_at > COALESCE(last_seen_at, -1) AS again
+       FROM sessions
+       WHERE id = :session AND nudge_claim_id IS NOT NULL
          AND (:bridge IS NULL OR nudge_claim_bridge IS NOT :bridge)`,
     )
     .get({ session: sessionId, bridge: actingBridge ?? null }) as
-    { again: number | null } | undefined;
+    { id: string; again: number | null } | undefined;
   if (orphan === undefined) {
     return false;
   }
   if (orphan.again === 1) {
-    settleClaim(db, sessionId, "failed");
+    settleClaim(db, sessionId, orphan.id, "failed");
     return false;
   }
   db.prepare("UPDATE sessions SET nudge_orphan_claimed_at = nudge_claimed_at WHERE id = ?").run(
     sessionId,
   );
-  releaseClaim(db, sessionId);
-  return true;
+  return releaseClaim(db, sessionId, orphan.id);
 }
 
 // forActingBridge runs a nudge's write in one transaction, only where the
