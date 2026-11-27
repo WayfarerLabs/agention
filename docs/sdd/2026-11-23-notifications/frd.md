@@ -2,9 +2,9 @@
 
 - Status: Accepted by the operator, with the rulings recorded under
   [Operator rulings](#operator-rulings-2026-11-23-onward): on 2026-11-25 (rulings 1 to 7), and, as
-  revised so a rule is a saved view that notifies, on 2026-11-27 (rulings 9 and 10). Notifications
-  ship in the same release as saved views (ruling 10). The installable web UI went ahead of the
-  revision (ruling 8).
+  revised so a rule is a saved view that notifies, on 2026-11-27 (rulings 9 and 10), and keeping its
+  own Web Push code on 2026-11-27 (ruling 11). Notifications ship in the same release as saved views
+  (ruling 10). The installable web UI went ahead of the revision (ruling 8).
 - Date: 2026-11-23
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -175,7 +175,7 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
    dependency; padding and outbound limits built in; tested against the RFC's worked example and
    your devices."). The token is signed with `jose`, which the server already ships, as the HLA
    says. Ask 12 in thread 19, asked after this acceptance, reopens how push is implemented, and is
-   open.
+   open (ruling 11 answers it).
 7. Saved views (thread 35's suggestion for notifications): "Recommended second, reshaped so a rule
    can follow a saved view; I'd show you that change before building". The reshape touches R1, R3,
    E2, the out-of-scope line saying only filters define a rule (saved views carry order and grouping
@@ -199,3 +199,9 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
     notifications ship in the same release?" The operator picked "One release (Recommended)" ("No
     key you've already issued ever widens."). So saved views and notifications ship in the same
     release, and no key issued with `saved-views:write` gains what notifies after it was issued.
+11. Web Push, our own code (ask 12, reopening ruling 6's choice): answered in Agention on 2026-11-27
+    (thread 19, message 17, 2026-11-27T21:34:51Z), to the question in message 9: "Keep our own Web
+    Push code, proven by the RFC's worked example, an independent round-trip check in tests, and
+    your devices before merge?" The operator picked "Yes, own code" ("As designed, plus the
+    test-only round-trip check."). So ruling 6 stands, with an independent decryption in the tests
+    and the operator's devices as the acceptance before merge.
