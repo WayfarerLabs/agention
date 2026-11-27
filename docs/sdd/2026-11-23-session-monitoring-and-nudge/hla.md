@@ -435,8 +435,11 @@ every case.
   the warning stays in the input, where the operator sees it, nothing submits it, and it holds later
   nudges off until someone clears it. Learning the mode another way waits until it proves common.
 - **Hint text** in an empty input (Claude Code's `Try "..."`, Codex's "Ask Codex to do anything") is
-  told from typed text only by the captured patterns, since captures carry no color; an unknown hint
-  leaves the nudge not ready, which is safe. Reading text attributes waits until a hint is missed.
+  told from typed text by the captured patterns, and Claude Code's prompt suggestions, which can say
+  anything, by their dim text after the prompt marker: the live run of ruling 9 found a suggestion
+  read as a draft holding every nudge off, so the observer reads the input row's text attributes for
+  the profiles that need them. An unknown hint leaves the nudge not ready, which is safe but leaves
+  the operator no way to clear it, so each harness release's captures are checked for new ones.
 - **Bracketed paste** cannot be detected: tmux has no format saying whether the program asked for
   it. Claude Code and Codex both do, and only their profiles nudge; a profile added for a harness
   that does not must be checked for it, since that harness would receive each text as typed keys.
