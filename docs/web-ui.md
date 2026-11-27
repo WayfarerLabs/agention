@@ -707,7 +707,8 @@ has the same ones, and a backup holds them. Agents never see them, and they gran
   views, Blocking me**. It opens a sheet from the bottom on a phone, and a panel on a wide screen,
   listing your views by name.
 - **A view is current** while the list on screen is its list, the values chosen in a filter in any
-  order, and the sheet checks it. Two views of the same list are both current.
+  order and a pull request's or branch's repository in any case, and the sheet checks it. Two views
+  of the same list are both current.
 - **Opening a view**, by its name in the sheet, shows its list just as its address would, so
   **Back**, reloading and copying the link behave as for any list. A filter that depends on the
   time, such as **Overdue**, is judged as the list shows, not when the view was saved. Changing the

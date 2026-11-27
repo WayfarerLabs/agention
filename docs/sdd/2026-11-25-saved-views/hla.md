@@ -152,8 +152,9 @@ saved views so they keep their meaning, which A18's text records as an exception
   (`views/settings/Organizer.tsx`): each view with a link opening it, **Rename**, and **Remove**,
   which asks first.
 - **Current** is computed, never stored: a view is current while the list on screen, as `listViewOf`
-  reads it, equals the view, comparing each part that takes several values as a set (FRD R4). Two
-  views alike are both current.
+  reads it, equals the view, comparing each part that takes several values as a set, and pull
+  requests and branches by their keys, as under Identities (FRD R4). Two views alike are both
+  current.
 
 **Home stays the default list** (FRD R7): the **Threads** tab and `g t` still open `/`.
 
