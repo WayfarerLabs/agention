@@ -137,16 +137,16 @@ export class Reporter {
   // the prompt has held the nudge off, while it does.
   #due = false;
   #nudging = false;
-  // Whether an attempt the server let go ahead is under way, from its
-  // claim's answer until it settles, or, deferred, until that is sent:
-  // meanwhile the poll says no nudge is known to be due, so the server holds
-  // it, and an answer from a poll that started earlier saying none is due
-  // changes nothing.
+  // Whether an attempt is under way, from its claim's sending, since the
+  // server may take it before its answer comes back, until it settles, or,
+  // deferred, until that is sent; and how many claims have been sent. While
+  // one is under way the poll says no nudge is known to be due, so the
+  // server holds it. A poll's answer that none is due, from a poll that
+  // started before the latest claim was sent or while an attempt was under
+  // way, changes nothing, since the server may have found none due for that
+  // claim's sake alone: the attempt's outcome decides.
   #attempting = false;
-  // The id of a claim the server may hold that the bridge could not
-  // release, which its next attempt claims again, under the same id, so the
-  // bridge never leaves a claim of its own under way behind a new one.
-  #unreleased: string | undefined;
+  #claimsSent = 0;
   #nudgeOff: MonitorUnable | undefined;
   #textLeft: MonitorUnable | undefined;
   // The pause before the next claim once the server refused one or it was
@@ -174,7 +174,19 @@ export class Reporter {
     this.#log = options.log;
     this.#claimBackoff = new Backoff(options.timing);
     this.#deferBackoff = new Backoff(options.timing);
-    options.monitor.onUnableChange(() => this.#requeue());
+    // A reading that changes why the session cannot be monitored can change
+    // what is observed too, which the monitor yields once that reading is
+    // done; the report goes again once that has had its turn, and only where
+    // it does not carry the reason already, so no report pairs a new reason
+    // with the observation before it.
+    options.monitor.onUnableChange(() => {
+      setImmediate(() => {
+        const unable = this.#unableNow();
+        if (JSON.stringify(this.#latest?.report.unable) !== JSON.stringify(unable)) {
+          this.#requeue();
+        }
+      });
+    });
   }
 
   // start runs the reporter, which reads the registration until it is
@@ -260,6 +272,7 @@ export class Reporter {
           claim = true;
         }
         const started = performance.now();
+        const asked = { claims: this.#claimsSent, attempting: this.#attempting };
         const answer = await this.#poll(claim, signal);
         backoff.reset();
         if (answer.replaced) {
@@ -283,10 +296,8 @@ export class Reporter {
           // rather than at the end of its pause.
           this.#retryWake?.abort();
         }
-        // While an attempt it claimed is under way, the server finds no nudge
-        // due for that claim's sake alone, which the attempt's outcome, not
-        // the poll, settles.
-        if (answer.nudge || !this.#attempting) {
+        const ownClaim = this.#attempting || asked.attempting || asked.claims !== this.#claimsSent;
+        if (answer.nudge || !ownClaim) {
           this.#due = answer.nudge;
         }
         if (answer.nudge) {
@@ -418,9 +429,8 @@ export class Reporter {
   // being deferred. A claim the server answers go to when sent again, its
   // first answer lost, is the same claim. Where a claim was sent again,
   // since one that failed may have reached the server, and is given up,
-  // that attempt is sent as deferred, since nothing was typed for it, and
-  // where that is not answered either, the next attempt claims under the
-  // same id. After a claim the server refused or that was given up, the
+  // that attempt is sent as deferred, since nothing was typed for it. After
+  // a claim the server refused or that was given up, the
   // next waits claimBackoff. The signal ends the tries, and stops a nudge
   // under way without another key, logging an attempt it stopped as
   // abandoned and sending no outcome, since another bridge may be nudging
@@ -429,7 +439,7 @@ export class Reporter {
   async #nudgeWhileDue(signal: AbortSignal): Promise<void> {
     try {
       while (this.#due && !signal.aborted && this.#nudgeOff === undefined) {
-        const texts = nudgeTexts(this.#unreleased);
+        const texts = nudgeTexts();
         // The observer calls begin, if at all, before it resolves.
         let claim = undefined as NudgeAnswer | undefined;
         const result = await this.#monitor.nudge(texts, {
@@ -439,10 +449,8 @@ export class Reporter {
             // server may take it before its answer comes back.
             this.#noteTextLeft(false);
             this.#attempting = true;
+            this.#claimsSent++;
             claim = await this.#nudgeRequest({ phase: "start", id: texts.id }, signal);
-            if (claim.answered) {
-              this.#unreleased = undefined;
-            }
             this.#attempting = claim.go;
             return claim.go;
           },
@@ -484,13 +492,7 @@ export class Reporter {
         } else {
           this.#due = false;
           if (claim.maybeTaken && !claim.answered) {
-            const released = await this.#nudgeRequest(
-              { phase: "done", id: texts.id, outcome: "deferred" },
-              signal,
-            );
-            if (!released.answered) {
-              this.#unreleased = texts.id;
-            }
+            await this.#nudgeRequest({ phase: "done", id: texts.id, outcome: "deferred" }, signal);
           }
         }
         if (!claim.answered && !signal.aborted) {
@@ -598,13 +600,19 @@ export class Reporter {
     if (this.#nudgeOff !== undefined && report.monitored) {
       report = { ...report, nudge: false };
     }
-    const unable = this.#monitor.unable() ?? this.#nudgeOff ?? this.#textLeft;
+    const unable = this.#unableNow();
     if (unable !== undefined) {
       report = { ...report, unable };
     }
     this.#latest = { report, seq: ++this.#seq };
     this.#unsent = true;
     this.#send();
+  }
+
+  // unableNow is why the session cannot be monitored or nudged, the first
+  // reason that applies, the monitor's before the reporter's own.
+  #unableNow(): MonitorUnable | undefined {
+    return this.#monitor.unable() ?? this.#nudgeOff ?? this.#textLeft;
   }
 
   // requeue sends the monitor's latest report again, once what the reporter

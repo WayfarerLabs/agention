@@ -120,6 +120,27 @@ async function nudgedBridge(
   return bridge;
 }
 
+// wakeOnClaims has the server, once it has taken each claim, wake the
+// session's held poll, which answers that none is due, and hold the claim's
+// answer back for the milliseconds given. Only one of a bridge's claims and
+// outcomes is under way at a time, so the latest of them is the one answered.
+function wakeOnClaims(holdFor: number): void {
+  harness.afterAnswer = async (request) => {
+    const latest = harness.nudgeRequests().at(-1);
+    if (
+      request.method === "POST" &&
+      new URL(request.url).pathname.endsWith("/monitor/nudge") &&
+      (latest?.body as { phase?: string } | undefined)?.phase === "start"
+    ) {
+      const { id } = harness.server.fixture.db.prepare("SELECT id FROM sessions").get() as {
+        id: number;
+      };
+      harness.server.fixture.store.notifier.notify(id);
+      await delay(holdFor);
+    }
+  };
+}
+
 // The outcome the server recorded for the session's latest nudge, once it
 // has one.
 const outcome = () => harness.nudged().outcome ?? undefined;
@@ -375,24 +396,28 @@ describe("the bridge's nudge", () => {
     expect(reset).toBeLessThan(600);
   });
 
+  it("has the server hold its polls from a claim's sending until the attempt ends, never asking at once", async () => {
+    const nudges = new FakeNudges("held");
+    // Once the server takes the claim, the held poll is woken and answers
+    // that none is due, and the claim's answer comes back only later.
+    wakeOnClaims(2500);
+    await nudgedBridge(nudges, nudging, { waitSeconds: 25, claimWithin: 10_000 });
+    await harness.operatorStarts("Over to you.");
+    await eventually(() => (nudges.calls[0]?.began === true ? true : undefined), "the claim", 800);
+    await delay(2500);
+    const claimed = harness.nudgeRequests()[0]?.at ?? 0;
+    const since = harness.polls().filter((seen) => seen.at > claimed);
+    // The poll answered for the claim's sake is followed by one the server
+    // holds, which says no nudge is known to be due.
+    expect(since.map((seen) => seen.query.get("nudge"))).toEqual([null]);
+  });
+
   it("keeps backing off where a poll says none is due between each claim and its answer", async () => {
     const deferred = { outcome: "deferred", step: "warning" } as const;
     const nudges = new FakeNudges(deferred, deferred, deferred, sent);
     // Once the server takes each claim, the held poll is woken and answers
     // that none is due, and only then does the claim's answer come back.
-    harness.afterAnswer = async () => {
-      const latest = harness.seen.at(-1);
-      if (
-        latest?.path.endsWith("/monitor/nudge") &&
-        (latest.body as { phase?: string }).phase === "start"
-      ) {
-        const { id } = harness.server.fixture.db.prepare("SELECT id FROM sessions").get() as {
-          id: number;
-        };
-        harness.server.fixture.store.notifier.notify(id);
-        await delay(200);
-      }
-    };
+    wakeOnClaims(200);
     await nudgedBridge(nudges, nudging, { retryFirst: 300, retryMost: 2000 });
     await harness.operatorStarts("Over to you.");
     await eventually(() => (outcome() === "sent" ? true : undefined), "the nudge's outcome", 600);
@@ -425,36 +450,6 @@ describe("the bridge's nudge", () => {
     // The deferral after the refusal waits as the third in a row does.
     const after = (nudges.calls[4]?.at ?? 0) - (nudges.calls[3]?.at ?? 0);
     expect(after).toBeGreaterThanOrEqual(1200 - 50);
-  });
-
-  it("claims again under the same id where it could not release a claim it gave up", async () => {
-    const nudges = new FakeNudges(sent, sent);
-    let failing = true;
-    let refusedOnce = false;
-    harness.answer = (seen) => {
-      if (!seen.path.endsWith("/monitor/nudge")) {
-        return undefined;
-      }
-      const { phase } = seen.body as { phase?: string };
-      if (phase === "start" && failing) {
-        return new Response("Bad gateway", { status: 502 });
-      }
-      if (phase === "done" && !refusedOnce) {
-        refusedOnce = true;
-        failing = false;
-        return serverJson(
-          { error: { code: "not_found", message: "a refusal's words" } },
-          statusByErrorCode.not_found,
-        );
-      }
-      return undefined;
-    };
-    await nudgedBridge(nudges);
-    await harness.operatorStarts("Over to you.");
-    await eventually(outcome, "the nudge's outcome");
-    const id = nudges.calls[0]?.texts.id;
-    expect(nudges.calls.map((call) => call.texts.id)).toEqual([id, id]);
-    expect(harness.nudged()).toEqual({ claim: null, id, outcome: "sent" });
   });
 
   it("stops saying nudge text is left as soon as an attempt finds the line ready, before it ends", async () => {

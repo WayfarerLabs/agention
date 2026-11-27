@@ -31,19 +31,17 @@ export interface AttemptTexts extends NudgeTexts {
   readonly id: string;
 }
 
-// nudgeTexts gives the texts of an attempt, each starting with the marker
-// and the attempt's id: the one given, for an attempt that claims again a
-// claim the server may hold, or else one drawn for this attempt alone. The
-// warning says a nudge is coming and that typing anything stops it; the
-// message, the same every time beyond its id, tells the agent to check in
-// with Agention, names no thread, and keeps the id, so the harness's
-// transcript records which attempt woke it.
+// nudgeTexts gives the texts of a new attempt, each starting with the marker
+// and an id drawn for this attempt alone. The warning says a nudge is coming
+// and that typing anything stops it; the message, the same every time beyond
+// its id, tells the agent to check in with Agention, names no thread, and
+// keeps the id, so the harness's transcript records which attempt woke it.
 // No nudge pastes over any text, since the observer nudges only at an empty
 // input line; nudge text, any attempt's, is whatever markedBy matches, which
 // decides only that a line holding it is reported as nudge text left at the
 // prompt, which the operator is to clear, rather than as not ready.
-export function nudgeTexts(given?: string): AttemptTexts {
-  const id = given ?? randomBytes(idDigits / 2).toString("hex");
+export function nudgeTexts(): AttemptTexts {
+  const id = randomBytes(idDigits / 2).toString("hex");
   const mark = `${nudgeMarker} ${id}`;
   return {
     id,

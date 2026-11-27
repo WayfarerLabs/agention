@@ -1876,17 +1876,17 @@ of it.
   keeps the screen changing, and starts again from a second once a claimed attempt settles
   otherwise; or `stopped`, `failed` or `sent`, which settle it. From the claim's sending until the
   attempt settles, or its deferral is sent, the reporter's polls say no nudge is known to be due, so
-  the server holds them, and a poll answered meanwhile saying none is due, for that claim's sake,
-  changes nothing; the attempt's outcome decides. A claim the same attempt sends again, its answer
-  lost, the server answers `go` again. A claim or an outcome is sent again after a pause that backs
-  off from 1 to 60 seconds, doubling, while it fails to reach the server or the server fails on or
-  rate limits it, a claim within the one try, before the observer reads the pane again, and for 10
-  seconds at most, after which it is given up as not claimed and sent as `deferred`, since one that
-  failed may have left the server holding it, so a nudge never typed is never shown; where that is
-  not answered either, the next attempt claims again under the same id, so the bridge never leaves a
-  claim of its own under way. While nudge text left at the prompt holds the nudge off, its reports
-  say `nudge_text_left`, logged once naming no attempt, until a try reads the input line without it,
-  as one ready to claim does at once, or the tries end; a try that did not read the line changes
+  the server holds them; a poll's answer that none is due, from a poll that started before the
+  latest claim was sent or while an attempt was under way, changes nothing, since the server may
+  have found none due for that claim's sake; the attempt's outcome decides. A claim the same attempt
+  sends again, its answer lost, the server answers `go` again. A claim or an outcome is sent again
+  after a pause that backs off from 1 to 60 seconds, doubling, while it fails to reach the server or
+  the server fails on or rate limits it, a claim within the one try, before the observer reads the
+  pane again, and for 10 seconds at most, after which it is given up as not claimed and sent as
+  `deferred`, since one that failed may have left the server holding it, so a nudge never typed is
+  never shown. While nudge text left at the prompt holds the nudge off, its reports say
+  `nudge_text_left`, logged once naming no attempt, until a try reads the input line without it, as
+  one ready to claim does at once, or the tries end; a try that did not read the line changes
   nothing.
 - **After a refusal.** After a claim the server refuses, or one given up, the reporter waits before
   it acts on a due answer again, since the next poll learns at once that the nudge is still due,
