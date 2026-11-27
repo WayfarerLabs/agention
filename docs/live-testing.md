@@ -88,15 +88,20 @@ disagreement is the finding.
   gate covers the latter on every change (`CONTRIBUTING.md` "The agent API"). The nudge, with
   `AGENTION_NUDGE=tmux` and a socket of the run's own tmux server: `register`'s `answers` once
   approved, with the nudge on and off and with a generic profile, which is never nudged; an agent at
-  its prompt nudged when the operator writes to it, checking in and updating its status; a nudge
-  refused at a permission dialog and while someone types, abandoned when the operator types over its
-  warning, and left in the input in Claude Code's vim normal mode; a bridge restarted, or a second
-  one started, in the middle of a nudge, with no second nudge before the agent checks in; a session
-  whose nudge went unanswered shown as not responding; and a thread whose agent checked in after the
-  nudge without reading it ignored, not stranded, once the quiet time passes, saying so, listed by
-  the Ignored filter and counted in the sessions view, and waiting on a new nudge, neither, when the
-  operator then writes to it or another thread of the session, stranded, not ignored, if that nudge
-  is not sent within the quiet time (`docs/operator-guide.md` "The nudge").
+  its prompt nudged when the operator writes to it, checking in and updating its status, with the
+  attempt's id in the host's transcript and on the session's latest nudge; a nudge refused at a
+  permission dialog and while someone types, stopped at the terminal when the operator types over
+  its warning, deferred without a failure when something else on the screen changes while the
+  warning stands, and failed, left in the input, in Claude Code's vim normal mode; nudge text left
+  at the prompt holding the nudge off, shown on the session, until it is cleared; a pane made
+  unreachable after the bridge started, shown on the session as it happens; a bridge restarted, or a
+  second one started, in the middle of a nudge, with no second nudge before the agent checks in; a
+  session whose nudge went unanswered shown as not responding; and a thread whose agent checked in
+  after the nudge without reading it ignored, not stranded, once the quiet time passes, saying so,
+  listed by the Ignored filter and counted in the sessions view, and waiting on a new nudge,
+  neither, when the operator then writes to it or another thread of the session, stranded, not
+  ignored, if that nudge is not sent within the quiet time, and at once if it fails or is stopped
+  (`docs/operator-guide.md` "The nudge").
 - **Generated plugins** on Claude Code and Codex, and the usage skill as an agent actually follows
   it. Codex runs only basic plugin-integration prompts and live checks of monitoring and the nudge,
   an operator bound.
@@ -296,8 +301,9 @@ On top of the method's failure classes, look for:
   default. PDFs in Windows Edge's viewer and Android Chrome's, on the operator's devices. Residue:
   an upload cut off, or the server killed during one, leaving no file or chunks after the next
   sweep; a `file_get` that fails leaving no partial file.
-- **Environment masking**: the Agentworks variables present or absent, a different umask, clock skew
-  between bridge and server, `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
+- **Environment masking**: the Agentworks variables present or absent, as on Agentworks, the first
+  execution platform, or on any other, a different umask, clock skew between bridge and server,
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.
 - **User hostility**: errors that do not say how to recover (an expired registration, a wrong
   origin, a skewed clock), a long poll that outlives its ceiling, a code that is hard to read aloud.
 

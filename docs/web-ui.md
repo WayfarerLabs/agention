@@ -182,17 +182,18 @@ pressed or opens a dialog or a menu of things to do, has nothing there.
   threads, saying why: its session **stopped**, with how; it is quiet, **last check-in** when, or
   **never checked in**; it has **no active credential**; or its bridge is **not connected**. For a
   session its bridge can nudge, it says what came of the nudge instead: **not responding to the
-  nudge at 14:05**, **nudge not sent at 14:05**, or **not nudged**. An ignored thread shows an
-  **Ignored** tag in the same color instead, saying when its agent checked in without reading it:
-  **Ignored · checked in at 14:05 without reading this**. Where the session's bridge monitors its
-  terminal, either tag also says what the terminal shows, in the words of the sessions view's rows,
-  such as **last check-in 14:02 · stopped at a permission prompt**. A session with no active
-  credential also shows its own tag, unless the stranded tag already says so. When the thread's
-  messages name one GitHub pull request or branch, it shows beneath, beside the same icon of two
-  lines merging into one, by its short form, which adds it to the filters on, keeping the others,
-  the order and the grouping; its link to GitHub is on the thread's page. When they name two or
-  more, that icon among the row's marks says how many, which a screen reader says in full, such as
-  **2 pull requests, 1 branch**, and the thread's head lists them.
+  nudge at 14:05**, **nudge failed at 14:05**, **nudge stopped at the terminal at 14:05**, or **not
+  nudged**, with why where it can say, as **not nudged: nudge text left at the prompt**. An ignored
+  thread shows an **Ignored** tag in the same color instead, saying when its agent checked in
+  without reading it: **Ignored · checked in at 14:05 without reading this**. Where the session's
+  bridge monitors its terminal, either tag also says what the terminal shows, in the words of the
+  sessions view's rows, such as **last check-in 14:02 · stopped at a permission prompt**. A session
+  with no active credential also shows its own tag, unless the stranded tag already says so. When
+  the thread's messages name one GitHub pull request or branch, it shows beneath, beside the same
+  icon of two lines merging into one, by its short form, which adds it to the filters on, keeping
+  the others, the order and the grouping; its link to GitHub is on the thread's page. When they name
+  two or more, that icon among the row's marks says how many, which a screen reader says in full,
+  such as **2 pull requests, 1 branch**, and the thread's head lists them.
 - A bar at the foot of the list, **List actions** to a screen reader, acts on every thread shown,
   leaving out those under a folded header, as **Select all** does. It stays in view as the list
   scrolls, below its last row once you reach it, and a row you move to with the keys scrolls into
@@ -528,9 +529,15 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
     stopped it, that first, with any prompt beside it, such as **stopped by a usage limit (resets
     15:00), at its prompt**, or **(reset due 15:00)** once that time has passed. A permission prompt
     or another prompt, or something that stopped it, is in the warning's color, since it needs you;
-  - once its bridge has claimed a nudge, what came of the latest: **nudged** and when; **not
-    responding to the nudge at** when, sent, or under way or with no outcome, with no check-in
-    since; or **nudge not sent at** when, the last two in the warning's color
+  - while it is connected and its bridge cannot monitor its terminal or nudge its agent, why and
+    since when, such as **Can't be nudged: nudge text left at the prompt since 14:05**, in the
+    warning's color for nudge text left; a session with no tmux socket or the nudge off says so only
+    unfolded, as how it was set up
+    ([Monitoring a session's terminal](operator-guide.md#monitoring-a-sessions-terminal));
+  - once its bridge has claimed a nudge, what came of the latest, with the attempt's id, which the
+    agent's transcript shows too: **nudged** and when; **not responding to the nudge at** when,
+    sent, or under way or with no outcome, with no check-in since; **nudge stopped at the terminal
+    at** when; or **nudge failed at** when, the second and the last in the warning's color
     ([The nudge](operator-guide.md#the-nudge));
   - **Last check-in** and when its agent last called Agention, or **Never checked in**, in the
     warning's color while the session is quiet and has not stopped, so a session can show
@@ -593,9 +600,9 @@ what `/registrations` shows, the page an agent waiting for approval sends you to
   it is started again, a quiet one not soon, one without a credential not until you approve a
   registration for it, and one whose bridge is not connected not until it connects again, with what
   its terminal shows where its bridge monitors it. A session its bridge can nudge is not likely to
-  see it only while its latest nudge has had no check-in since, sent or not, since it is not nudged
-  again until it checks in; quiet or stopped, it gets the thread's nudge. The thread is stranded
-  until the session reads it.
+  see it only while its latest nudge has had no check-in since, whatever its outcome, since it is
+  not nudged again until it checks in; quiet or stopped, it gets the thread's nudge. The thread is
+  stranded until the session reads it.
 
 - Above the agents, as on the thread list, **Sort** and **Group** choose how they show, and the
   page's address keeps your choice, so going back to the view or a link to it shows it the same.

@@ -23,8 +23,10 @@ or at its prompt, never the screen's text. With the nudge on, and the terminal
 read with the agent host's own profile, never a generic one, it also nudges
 the agent at its prompt when the operator writes and the agent has not
 checked in since: it shows a warning the operator can type over to stop it,
-then submits one fixed message telling the agent to check in. An option wins
-over its variable.
+then submits one fixed message telling the agent to check in. Why it cannot
+monitor or nudge, such as a pane it can no longer read, it reports to the
+operator as that arises, never to the agent. An option wins over its
+variable.
 
 Options:
   --tmux-socket PATH      The tmux server's socket; by default

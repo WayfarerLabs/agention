@@ -19,10 +19,11 @@ the person at its terminal can answer, which is the session the operator most ne
 call the bridge made counted as the agent's, so anything the bridge did on its own would have read
 as the agent checking in.
 
-The agent hosts Agention supports run in a terminal, and the setups that run several agents, such as
-Agentworks, run each session's host in a tmux server of its own. The bridge is a child of the host,
-on the same machine, as the same user who owns that tmux server, so it can read the host's screen
-without any access it lacks.
+The agent hosts Agention supports run in a terminal, and an execution platform that runs several
+agents can run each session's host in a tmux server of its own, as Agentworks, the first such
+platform, does, and tell the bridge where; nothing here depends on which platform it is. The bridge
+is a child of the host, on the same machine, as the same user who owns that tmux server, so it can
+read the host's screen without any access it lacks.
 
 ## Decision
 

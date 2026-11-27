@@ -246,12 +246,13 @@ or withdraws them).
 
 A thread changes only its latest sequence, which a trigger holds. A session records when its agent
 last checked in, kept to the minute, with the agent API version of that call, when its bridge last
-made a background request, and its latest nudge: when its bridge claimed it, by the server's clock,
-and whether it was sent, unknown while it is under way or where its outcome never arrived.
-`monitor_reports` holds each session's latest monitoring report, one row each, which the next
-replaces, its checks holding the report's shape, whether the session can be nudged among it. Checks
-hold the rest of what the store keeps true: one operator, whose id is 1; a registration's session
-set exactly when it is approved or revoked; and a message's detail only beside its text.
+made a background request, the nudge its bridge has claimed and not yet said the outcome of, by the
+attempt's id and the server's clock, and apart from it its latest nudge: the latest claim that
+settled, with its time, id and outcome, sent, stopped or failed. `monitor_reports` holds each
+session's latest monitoring report, one row each, which the next replaces, its checks holding the
+report's shape, whether the session can be nudged and why it cannot be monitored or nudged among it.
+Checks hold the rest of what the store keeps true: one operator, whose id is 1; a registration's
+session set exactly when it is approved or revoked; and a message's detail only beside its text.
 
 `message_positions` gives every message a position among all messages, in the order they are
 written, which the operator's wait across sessions counts from. A message has no stable integer key
@@ -481,11 +482,11 @@ so a call refused later still counts.
 - **Checking in.** Every other call is the agent checking in, stamped with the agent API version the
   call states, and only when that moves the last check-in a minute or more, when the last check-in
   is after now, so a clock stepped back never holds it still, when the version differs from the last
-  one's, or when the last check-in is before the latest claim of a nudge, so a check-in during a
-  nudge, or in reply to one, always shows. Check-ins are otherwise stamped to the minute, so a
-  check-in up to a minute after an operator message can still leave one nudge due for it, which the
-  agent reading the thread ends. A stamp wakes no poll, though it can end a nudge being due, since
-  the bridge's claim checks again that one is.
+  one's, or when the last check-in is before the claim of a nudge under way or the latest nudge, so
+  a check-in during a nudge, or in reply to one, always shows. Check-ins are otherwise stamped to
+  the minute, so a check-in up to a minute after an operator message can still leave one nudge due
+  for it, which the agent reading the thread ends. A stamp wakes no poll, though it can end a nudge
+  being due, since the bridge's claim checks again that one is.
 - A stamp writes only while the registration is still approved, so a revocation that commits as a
   token is verified stamps nothing.
 - A stamp that fails is logged and the call carries on, since presence is advisory.
@@ -499,10 +500,11 @@ From those the reads derive, against the request's clock and never stored:
   agent API version 8 cannot report a connection, so while no bridge is connected and the agent last
   checked in through such a bridge, as every check-in from before versions were kept did, the
   session follows their rule: connected is not stated and never counts against it.
-- **Not responding to the nudge**: the session's latest nudge was sent, or its outcome is not known,
-  and its agent has not checked in since. Each session's presence carries its latest nudge with
-  whether it has, as `last_nudge`'s `answered`, and with `sent` true for a nudge whose outcome is
-  not known.
+- **Not responding to the nudge**: the session's latest nudge was sent, or is under way or its
+  outcome never came, and its agent has not checked in since. Each session's presence carries its
+  latest nudge (`latestNudgeOf`), the claim under way where there is one, which reads as sent, with
+  its time, its attempt's id, its outcome, `sent`, `stopped` or `failed`, and whether the agent has
+  checked in since, as `last_nudge`'s `answered`. An attempt deferred is no nudge and never shows.
 - **Stranded** and **ignored**: a thread holding a live message of the operator's that the session
   has not read is left unread, one or the other, by the first of these that holds (`threadsSeen`,
   `apps/server/src/store/thread-reads.ts`):
@@ -519,20 +521,21 @@ From those the reads derive, against the request's clock and never stored:
      busy, at another screen or held by a usage limit, which its bridge is due no nudge for, waits
      as if one were.
   4. Otherwise it is neither until the latest nudge since the earliest message the agent has not
-     read was not sent, or was sent (or its outcome is not known) and was claimed longer ago than
-     the quiet time, or, with none claimed since, that message is older than the quiet time.
+     read failed or was stopped at the terminal, which strands it at once, its outcome saying why;
+     or was sent (or is under way, or its outcome never came) and was claimed longer ago than the
+     quiet time; or, with none claimed since, that message is older than the quiet time.
   5. Then it is ignored where the agent last checked in at or after both that message and the latest
      nudge, if any, and that message is older than the quiet time: the agent was there and left the
      thread unread.
   6. Otherwise it is stranded.
 
   A session that can be nudged is not stranded for waiting at its prompt, since a nudge will bring
-  it. Stranded follows from a session that stopped, went quiet or lost its connection, or a nudge
-  that never came; ignored says the agent is not doing what it should. An agent that checks in
-  without reading a thread is not nudged for it again, since a nudge is due only for a message
-  written after the last check-in, so nothing more brings it until the operator writes again, in it
-  or any other thread of the session. A thread is never both, and a session that cannot be nudged
-  has no ignored threads.
+  it. Stranded follows from a session that stopped, went quiet or lost its connection, a nudge that
+  failed or was stopped, or one that never came, as when nudge text left at the prompt holds it off;
+  ignored says the agent is not doing what it should. An agent that checks in without reading a
+  thread is not nudged for it again, since a nudge is due only for a message written after the last
+  check-in, so nothing more brings it until the operator writes again, in it or any other thread of
+  the session. A thread is never both, and a session that cannot be nudged has no ignored threads.
 
 Only the thread's audience, the operator, sees them, with the state and outcome the session last
 reported, which say why it is stranded, and, while it is connected, its bridge's latest report, as
@@ -561,7 +564,10 @@ without ending the old, and one acts for it: the latest to claim it.
 - **Reports.** A report carries its bridge's number for it, `seq`, which counts up with each report
   the bridge sends, and replaces the session's latest unless its number is no higher than the latest
   accepted from that bridge, when it is ignored, so a report delayed past a later one never
-  overwrites it.
+  overwrites it. Besides the condition, a report says, as `unable`, why the bridge cannot monitor
+  the session's terminal or nudge its agent, where it cannot, one reason of a fixed list
+  (`monitorReason`) with since when by the bridge's clock, which the operator's session and thread
+  reads carry with the rest of the report and no agent-facing answer does.
 
 The holder changes in memory only once the write that goes with it, a claim's deletion or a report,
 has committed. The latest report shows to the operator only while the session is connected, so a
@@ -576,7 +582,8 @@ The poll also says whether a nudge is due for the session ([ADR 0007](adrs/0007-
   limit whose reset is unknown or still to come;
 - one of its threads holds a live message by anyone but its agent that its agent has not read, by
   the rule the agent's own unread count follows, written after the agent's last check-in;
-- no nudge was claimed since that check-in.
+- no nudge was claimed since that check-in: none under way, and none settled, since an attempt
+  deferred releases its claim.
 
 It is read from the session's rows on each poll, writing nothing, so it holds across a server
 restart, a bridge restart and a takeover, and it says nothing more: no thread, message or presence,
@@ -586,14 +593,19 @@ and a replaced bridge is never told one is due.
   poll answers at once only when that differs from what the server finds, so a bridge told one is
   due holds its poll while it still is.
 - **Wakes.** What can make one due wakes the session's channel: a report that says the session can
-  be nudged at its prompt, and a message. What ends one, a check-in, a mark of the session's own or
-  a claim, wakes nothing, since a claim checks again that one is due, so a bridge told of one that
-  lapsed learns it when its claim is refused or its poll's wait ends.
+  be nudged at its prompt, a message, and an attempt deferred after its claim. What ends one, a
+  check-in, a mark of the session's own or a claim, wakes nothing, since a claim checks again that
+  one is due, so a bridge told of one that lapsed learns it when its claim is refused or its poll's
+  wait ends.
 - **The claim.** The bridge claims a nudge on `POST .../monitor/nudge` (`recordNudge`) before it
-  puts anything in the pane. `start`, in one transaction, goes ahead only from the bridge that acts
-  for the session while a nudge is due, recording the claim's time by the server's clock as the
-  session's latest nudge, its outcome unknown, and answers `go`; `done` sets whether it was sent,
-  only where the latest claim has no outcome yet, so sending it again changes nothing.
+  puts anything in the pane, by the attempt's `id`. `start`, in one transaction, goes ahead only
+  from the bridge that acts for the session while a nudge is due, recording the claim, its time by
+  the server's clock and the attempt's id, and answers `go`; a claim before it whose outcome never
+  came settles first as sent. `done` carries the attempt's id and its `outcome` and fills only the
+  claim that id names, so sending it again, or for a claim the server never took, changes nothing:
+  `sent`, `stopped` or `failed` settle the claim as the session's latest nudge; `deferred` releases
+  it, leaving the latest nudge as it was, and wakes the session's channel, since the nudge is due
+  again.
 
 A session is nudged at most once until its agent checks in, even where its bridge restarts or
 another takes over mid-nudge.
@@ -1831,30 +1843,40 @@ of it.
   a minute between them.
 - **Nudging.** A poll answered `nudge: true` makes the reporter remember that a nudge is due, so its
   next polls say `nudge=true` and the server holds them until that changes, and has monitoring nudge
-  the agent with texts of `apps/bridge/src/nudge.ts`: a warning of fixed words and 4 random bytes in
-  hex from `crypto.randomBytes`, which the observer removes and never submits, and a fixed message
-  telling the agent to check in with Agention, each one line of printable ASCII. Nothing from the
-  server or the screen reaches either. While the session is not ready, the reporter asks again about
-  once a second, which reads only the pane and makes no request, until it is ready or a poll says no
-  nudge is due.
+  the agent with texts of `apps/bridge/src/nudge.ts`, drawn for each attempt: a warning, which the
+  observer removes and never submits, and a message telling the agent to check in with Agention,
+  each fixed words after the nudge marker, `Agention nudge`, and the attempt's id, 6 random bytes in
+  hex from `crypto.randomBytes`, each one line of printable ASCII. Nothing from the server or the
+  screen reaches either. Nudge text is whatever starts with the marker and an id (`markedBy`), which
+  the observer never pastes over. While the session is not ready, the reporter asks again about once
+  a second, which reads only the pane and makes no request, until it is ready or a poll says no
+  nudge is due; while nudge text left at the prompt is what holds it off, its reports say
+  `nudge_text_left` until the line clears or the tries end, logged once with the attempt's id.
 - **Claiming a nudge.** Once ready, the observer asks it to claim the nudge,
-  `POST .../monitor/nudge` with `{phase: "start"}`, and goes on only where the server answers `go`
-  and the pane still shows the same screen; one it answers no is not tried. A nudge it claimed is
-  logged by the step it stopped at, never a text, and its outcome sent as `{phase: "done", sent}`. A
-  claim or an outcome is sent again after a pause that backs off from 1 to 60 seconds, doubling,
-  while it fails to reach the server or the server fails on or rate limits it, a claim within the
-  one try, before the observer reads the pane again, and for 10 seconds at most, after which it is
-  given up as not claimed. Where a claim was sent again, since one that failed may have left the
-  server holding it, and is answered no or given up, the reporter sends
-  `{phase: "done", sent: false}`, so a nudge never typed is not shown as sent.
+  `POST .../monitor/nudge` with `{phase: "start", id}`, and goes on only where the server answers
+  `go` and the pane still shows the same screen; one it answers no is not tried. An attempt it
+  claimed is logged by its id, outcome and step, never a text, and its outcome sent as
+  `{phase: "done", id, outcome}`: `deferred`, which releases the claim, so the reporter tries again
+  while the nudge is due, or `stopped`, `failed` or `sent`, which settle it. A claim or an outcome
+  is sent again after a pause that backs off from 1 to 60 seconds, doubling, while it fails to reach
+  the server or the server fails on or rate limits it, a claim within the one try, before the
+  observer reads the pane again, and for 10 seconds at most, after which it is given up as not
+  claimed. Where a claim was sent again, since one that failed may have left the server holding it,
+  and is answered no or given up, the reporter sends that attempt as `deferred`, so a nudge never
+  typed is never shown.
 - **After a refusal.** After a claim the server refuses, or one given up, the reporter waits before
   it acts on a due answer again, since the next poll learns at once that the nudge is still due,
   backing off from 1 to 60 seconds, doubling, until a claim is answered `go`. A poll that says a
   nudge is due while an outcome is still being sent starts the next nudge once that ends. A claim or
   outcome the server refuses as `invalid_input` stops nudging for the life of the process, logged by
-  the code alone, and from then on its reports say the session cannot be nudged and `register` says
-  `check`; any other refusal is the poll's to deal with. A takeover or the bridge closing stops a
-  nudge under way with no key more.
+  the code alone, and from then on its reports say the session cannot be nudged, as
+  `claims_refused`, and `register` says `check`; any other refusal is the poll's to deal with. A
+  takeover or the bridge closing stops a nudge under way with no key more, and sends no outcome.
+- **Why it cannot.** Each report carries why the session cannot be monitored or nudged, where it
+  cannot, as `unable`: monitoring's reason, from the configuration or the pane, where it has one,
+  and otherwise the reporter's own, `claims_refused` or `nudge_text_left`. The agent is never told:
+  no tool's answer carries it, and `register`'s says only how answers reach the agent, as it found
+  when called.
 
 ### Monitoring
 
@@ -1878,9 +1900,20 @@ says the bridge monitors no pane.
   the harness is running and, at rest, what its screen holds; the bridge spells that as one
   condition, the screen naming it at rest (its prompt `at_prompt`, a screen the profile does not
   recognize `waiting`), and puts the stopped-by reason beside whatever condition it is.
+- **Why it cannot.** A report says why the session cannot be monitored or nudged, where it cannot,
+  with since when, the first of these that holds: no socket (`no_socket`), from when the bridge
+  started; a pane it cannot read (`pane_unreachable`), or one that is not this session's alone, a
+  tmux server of more than one pane or a pane that does not run the bridge (`not_one_pane`), from
+  when that began, reported again as soon as it begins, changes or ends, even while the condition
+  stays unknown; and, from when the bridge started, a profile name it does not know
+  (`unknown_profile`), the nudge off (`nudge_off`) or of a type it does not know
+  (`unknown_nudge_type`), and a generic profile (`generic_profile`). A harness that does not hold
+  its terminal, as when it opened an editor, is a condition, read as unknown, and gives no reason.
 - **Nudging.** The observer's `nudge` carries out the nudge, with every check before each key that
-  `packages/harness-observer`'s README lists, against the observations the bridge is reading; the
-  pane passes its pastes and keys to tmux and logs neither.
+  `packages/harness-observer`'s README lists, against the observations the bridge is reading, and
+  says how it ended: deferred, with nothing of it left in the pane, as where nudge text held it off
+  or a change elsewhere on the screen had it take its text back; stopped by someone typing; failed;
+  or sent. The pane passes its pastes and keys to tmux and logs neither.
 - **What it logs.** The bridge logs to its standard error, once each time one begins, a pane it
   cannot read (no tmux server at the socket, a path too long for a socket, no `tmux` command), a
   machine with no `/proc`, which monitoring needs Linux for, a tmux that leaves the formats it is
@@ -2171,7 +2204,8 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
   part the view cannot take, such as manual grouped by agent, reads as its default. Choosing
   replaces the address, as the thread list's head does, sharing its controls
   (`src/views/list-head.tsx`).
-- **Sources.** A row's connection, its bridge's latest report, what came of its latest nudge
+- **Sources.** A row's connection, its bridge's latest report with why it cannot monitor or nudge
+  (`unable`, worded by `unableReasonWords`), what came of its latest nudge with the attempt's id
   (`last_nudge`, worded by `nudgeWords` in `src/format.tsx`) and its agent's last check-in come from
   the session's presence, how long ago its status was updated from the status's `updated_at`, and
   its threads' roll-up from its summary; an agent's header and a group's head compose theirs from
@@ -2211,12 +2245,14 @@ and [Groups and tags](web-ui.md#groups-and-tags) its pickers and Settings' lists
 Wherever a thread shows as stranded or ignored, the UI says why from the session's presence in the
 thread's summary (`absenceOf`, `src/format.tsx`): for an ignored thread, when its agent last checked
 in, without reading it. Otherwise, for a session its bridge can nudge, no active credential;
-otherwise its latest nudge with no check-in since, not responding to it or not sent; otherwise that
-no nudge came. For any other session, the stop it reported, with its outcome; otherwise quiet, with
-when its agent last checked in; otherwise no active credential; otherwise its bridge not connected.
-Beside any but the last, it says what the session's terminal shows, where the bridge reports it. The
-new-thread sheet warns of the same reasons but the last of a session that can be nudged, which a new
-thread's nudge will reach, and the first, which only a thread already written to can have.
+otherwise its latest nudge with no check-in since, not responding to it, failed or stopped at the
+terminal, or, for a stranded thread, its latest nudge failed or stopped; otherwise that no nudge
+came, with why where nudge text left at the prompt held it off. For any other session, the stop it
+reported, with its outcome; otherwise quiet, with when its agent last checked in; otherwise no
+active credential; otherwise its bridge not connected. Beside any but the last, it says what the
+session's terminal shows, where the bridge reports it. The new-thread sheet warns of the same
+reasons but the last of a session that can be nudged, which a new thread's nudge will reach, and the
+first, which only a thread already written to can have.
 
 ### Navigation counts
 

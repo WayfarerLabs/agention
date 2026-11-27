@@ -48,7 +48,8 @@ the command runs.
 
 The first request lists your agents with their sessions, each with its `presence`, which holds,
 while its bridge is connected, its `monitor`, what the bridge last reported of the session's
-terminal, and, once its bridge has claimed a nudge, its `last_nudge`
+terminal, with `unable`, why it cannot monitor or nudge, where it cannot, and since when, and, once
+its bridge has claimed a nudge, its `last_nudge`, with the attempt's `id` and its `outcome`
 ([The nudge](operator-guide.md#the-nudge)). A thread's `presence` carries the same, with the state
 and outcome its session last reported, and the thread says whether it is `stranded` or `ignored`
 (its agent checked in and left it unread), so a program can say why such a thread waits; the

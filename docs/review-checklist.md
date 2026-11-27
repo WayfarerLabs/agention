@@ -22,20 +22,23 @@ be built where the trust model says it does not belong (A6).
 
 Agention never grants permissions, injects into a chat, controls a harness, or acts on message
 content (ADR 0001 "Not doing"), but for the nudge: where the operator turns it on, the bridge
-submits one fixed message at the agent's prompt, after a warning of fixed words and a random token,
-with Backspace and Enter as its only keys and pastes its only text (ADR 0007). Neither text carries
-anything from the server, the screen or any message, and every key follows the harness observer's
-own checks; the nudge's type is optional and off by default, and tmux is the one there is. Tailscale
-is one documented way to host, not a dependency (ADR 0001 "Transport independence"); Agentworks only
-supplies the session's default names, and nothing else depends on it; the MCP surface and usage
-skill work on every supported agent host (ADR 0001 "Distribution: generated agent plugins"); and
-Agention uses no paid service by default: voice's transcription provider is the one optional paid
-service, which the operator opts into and which is off until they do (ADR 0002). Look for core paths
-that import, require, or default to one host, network, or harness, a paid service on by default or
-without a decision of its own, optionality or dependencies nothing in the docs calls for, and any
-text or key reaching a pane beyond the nudge's own: a text built from anything but the bridge's
-constants and its token, a key but Backspace and Enter, or one pressed outside the observer's
-`nudge`.
+submits one fixed message at the agent's prompt, after a warning, both of fixed words after the
+nudge marker and a random attempt id, with Backspace and Enter as its only keys and pastes its only
+text (ADR 0007). Neither text carries anything from the server, the screen or any message, and every
+key follows the harness observer's own checks; the nudge's type is optional and off by default, and
+tmux is the one there is. Tailscale is one documented way to host, not a dependency (ADR 0001
+"Transport independence"); Agentworks is the first execution platform to run sessions for Agention,
+never an assumption: its variables only supply the session's default names, the monitoring and nudge
+settings are named for what they configure, and nothing else depends on it; the MCP surface and
+usage skill work on every supported agent host (ADR 0001 "Distribution: generated agent plugins");
+and Agention uses no paid service by default: voice's transcription provider is the one optional
+paid service, which the operator opts into and which is off until they do (ADR 0002). Look for core
+paths that import, require, or default to one host, network, or harness, a paid service on by
+default or without a decision of its own, optionality or dependencies nothing in the docs calls for,
+and any text or key reaching a pane beyond the nudge's own: a text built from anything but the
+bridge's constants, the marker and the attempt's id, a key but Backspace and Enter, one pressed
+outside the observer's `nudge`, or a Backspace that removes anything but the attempt's own exact
+text.
 
 ## A2. Actor from authentication, target from the request
 
@@ -56,12 +59,12 @@ operation, including reading, archiving, list filters, references to threads, an
 (the **Isolation** invariant in `SECURITY.md` "Security model"; `docs/architecture.md` "Store").
 Agents set and filter topics on their own session's threads, and topics never span sessions; a
 thread reference names a thread of the same session. Quiet, connected, stranded, ignored, a
-session's latest nudge and what monitoring reports, whether it can be nudged among it, reach only
-the operator, and the operator's session groups and tags are operator-only and grant nothing. Look
-for distinguishable errors, counts, timing paths, identifiers, or list positions that reveal another
-session's threads; references or topics that cross sessions; an archive mark visible to the other
-party; authorization not rechecked on each `message_wait` wake; and presence signals, groups, or
-tags reachable from the agent surface.
+session's latest nudge and what monitoring reports, whether it can be nudged and why it cannot be
+monitored or nudged among it, reach only the operator, and the operator's session groups and tags
+are operator-only and grant nothing. Look for distinguishable errors, counts, timing paths,
+identifiers, or list positions that reveal another session's threads; references or topics that
+cross sessions; an archive mark visible to the other party; authorization not rechecked on each
+`message_wait` wake; and presence signals, groups, or tags reachable from the agent surface.
 
 ## A4. People and agents authenticate separately
 
@@ -117,7 +120,10 @@ stays stopped (ADR 0001 "Sessions report what they are doing"). Look for timers 
 threads or a session's status, inferred goals, progress or any other state, automatic withdrawals,
 archives, or escalations, validation that second-guesses what the agent reports, and a nudge said to
 be due on anything but that rule, with a reason, a thread or presence beside it, or tried or claimed
-more than once between check-ins, by one bridge or across several, a restart or a takeover.
+more than once between check-ins, by one bridge or across several, a restart or a takeover, but for
+an attempt deferred with nothing of it left in the pane, which releases its claim; and trouble the
+bridge finds after `register`, such as a pane it can no longer read, told to the agent rather than
+shown to the operator on the session.
 
 ## A7. Stale writes, request ids, and read cursors
 

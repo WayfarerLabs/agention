@@ -33,15 +33,18 @@ index of those docs.
 - Load-bearing dependencies and optional integrations: ADR 0001 "Repository and supply chain", and
   `docs/architecture.md` "API contract" and "Web UI"; optional: Tailscale, one documented way to
   publish the server (`docs/operator-guide.md` "Publishing it with `tailscale serve`", ADR 0001
-  "Transport independence"), Agentworks, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only
-  default the session's names (`docs/operator-guide.md` "Agents"), a transcription provider for
-  voice, off until the operator chooses one, reached through the OpenAI-compatible API
-  (`docs/operator-guide.md` "Voice", ADR 0002), programs the operator runs that call the operator
-  API with an API key they created (`docs/operator-guide.md` "API keys", ADR 0003), and tmux on the
-  agent's machine, whose pane the bridge reads a session's condition from where it is given the
-  socket, on Linux with tmux 3.3 or later, and into whose pane it types the nudge's one fixed
-  message where `AGENTION_NUDGE` turns it on (`docs/operator-guide.md` "Monitoring a session's
-  terminal" and "The nudge", ADR 0006 and ADR 0007)
+  "Transport independence"), Agentworks, the first execution platform to run sessions for Agention
+  and never an assumption, whose `AGENTWORKS_AGENT` and `AGENTWORKS_SESSION` only default the
+  session's names (`docs/operator-guide.md` "Agents"), and which, like any platform, may set
+  monitoring's and the nudge's platform-neutral variables (`docs/operator-guide.md` "Monitoring a
+  session's terminal"), a transcription provider for voice, off until the operator chooses one,
+  reached through the OpenAI-compatible API (`docs/operator-guide.md` "Voice", ADR 0002), programs
+  the operator runs that call the operator API with an API key they created
+  (`docs/operator-guide.md` "API keys", ADR 0003), and tmux on the agent's machine, whose pane the
+  bridge reads a session's condition from where it is given the socket, on Linux with tmux 3.3 or
+  later, and into whose pane it types the nudge's one fixed message where `AGENTION_NUDGE` turns it
+  on (`docs/operator-guide.md` "Monitoring a session's terminal" and "The nudge", ADR 0006 and
+  ADR 0007)
 - Product shape, which selects the `project-review` conditional checks: long-lived managed entities
   agents, sessions, registrations and threads (ADR 0001 "Agents, sessions and threads";
   `docs/architecture.md` "Store"; `docs/operator-guide.md` "Approving agents"); persisted state and

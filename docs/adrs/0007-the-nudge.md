@@ -37,19 +37,25 @@ every check that can be made before each key.
   the server answers at once only when that differs, so a bridge told one is due holds its poll
   while it still is. The poll is woken by what can make one due: a report that leaves the session
   ready for one, and a message. What ends one being due wakes nothing, since the claim checks again.
-  Before it puts anything in the pane, the bridge claims the nudge: in one transaction the server
-  checks that the bridge acts for the session and that one is due, and records the claim, by its own
-  clock, as the session's latest nudge. The rule and the claim read only the session's rows, so a
-  session is nudged at most once until its agent checks in, whether the nudge was sent or not,
-  across a server restart, a bridge restart and the takeover of ADR 0006's one acting bridge, even
-  one in the middle of a nudge.
-- **The texts are the bridge's own.** A nudge puts two texts in the pane: a warning that a nudge is
-  coming and that typing anything stops it, ending with a token drawn from a cryptographic random
-  source for that nudge alone, and then one fixed message telling the agent to check in with
-  Agention: read its unread threads and bring its status up to date. Both are constants in the
-  bridge, one line of printable ASCII each. Nothing from the server, the operator, an agent or the
-  screen reaches either, so a nudge cannot carry an instruction; what the operator wrote reaches the
-  agent only through Agention's tools, as before.
+  Before it puts anything in the pane, the bridge claims the nudge by its attempt's id: in one
+  transaction the server checks that the bridge acts for the session and that one is due, and
+  records the claim, by its own clock, apart from the session's latest nudge, which the claim
+  becomes once its outcome settles it. The rule and the claim read only the session's rows, so a
+  session is nudged at most once until its agent checks in, whatever the nudge's outcome, across a
+  server restart, a bridge restart and the takeover of ADR 0006's one acting bridge, even one in the
+  middle of a nudge. An attempt that left nothing of its own in the pane is no nudge: it releases
+  its claim, and the nudge stays due.
+- **The texts are the bridge's own, and marked.** A nudge puts two texts in the pane: a warning that
+  a nudge is coming and that typing anything stops it, and then one fixed message telling the agent
+  to check in with Agention: read its unread threads and bring its status up to date. Both start
+  with the nudge marker, `Agention nudge`, and an id drawn from a cryptographic random source for
+  that attempt alone, so the bridge knows nudge text wherever it sees it, an attempt takes only its
+  own text as its own and never an earlier attempt's, and the id stays in the submitted message, so
+  the harness's transcript records which attempt woke the agent, which the operator sees on the
+  latest nudge. Beyond the marks both are constants in the bridge, one line of printable ASCII each.
+  Nothing from the server, the operator, an agent or the screen reaches either, so a nudge cannot
+  carry an instruction; what the operator wrote reaches the agent only through Agention's tools, as
+  before.
 - **Only at a still prompt, and the person at the terminal can stop it.** The harness observer's
   nudge starts only when its latest observation finds the harness at its prompt, not stopped by a
   usage limit yet to reset, holding the terminal, with keys reaching it, no key typed by any client
@@ -58,24 +64,39 @@ every check that can be made before each key.
   the cursor's whole row as the input line, so it cannot tell a draft the operator left at the
   prompt from an empty prompt, and a nudge there would submit the draft with the message appended,
   so the bridge reports a session read with one as one it cannot nudge. Once ready, the observer has
-  the bridge claim the nudge, and reads the pane again to find the same screen. It pastes the
-  warning through a buffer of its own, waits five seconds and abandons the nudge if the line is not
-  exactly as it left it; otherwise it removes the warning, checks the line is empty, pastes the
-  message, checks it, and submits it, then watches the harness take it. Its only keys are Backspace,
-  to remove its own text, and Enter, to submit its own message, each straight after a reading
-  confirmed the line holds exactly what it expects; text reaches the pane only as a paste, which
-  refuses control characters. Where reading or writing the pane fails, it stops as a failed check at
-  that step does: the warning stays, and the message is removed where the line still holds exactly
-  it; a bridge another has taken over from sends no key more.
-- **Watched, and the outcome reported.** Once a nudge it claimed ends, the bridge sends whether it
-  was sent, again until it reaches the server, and logs the step a nudge stopped at, never a text.
-  The server fills it in only where the latest claim has none yet, and stamps the agent's next
-  check-in after a claim at once, so the operator sees a session **not responding to the nudge**
-  only while a nudge has had no check-in since; one whose outcome never arrived counts as sent. A
-  nudge can be claimed and then find the pane changed during the claim, which reports it not sent
-  with nothing typed, and no other nudge comes until a check-in. A nudge the observer finds the
-  session not ready for puts nothing in the pane, is not claimed and is no nudge: the bridge tries
-  again about a second later while one is due, reading only the pane.
+  the bridge claim the nudge, and reads the pane again to find the same screen. Nudge text already
+  on the line, left by an earlier attempt or anyone, is never pasted over or removed: it holds the
+  nudge off. It pastes the warning through a buffer of its own, waits five seconds and confirms the
+  line holds exactly it; otherwise it removes the warning, checks the line is empty, pastes the
+  message, checks it, and submits it, then watches the harness take it. The checks of the texts
+  compare only the input line and the cursor: where the line holds exactly the nudge's text but the
+  rest of the screen changed meanwhile, as when the harness starts a turn or redraws, the nudge
+  takes its text back and tries again later, since a harness redraws often and treating that as a
+  failure would raise false alarms. Its only keys are Backspace, to remove its own text, and Enter,
+  to submit its own message, each straight after a reading confirmed the line holds exactly what it
+  expects; text reaches the pane only as a paste, which refuses control characters. A bridge another
+  has taken over from sends no key more.
+- **Watched, and the outcome reported.** Each attempt ends in one of four outcomes, which the bridge
+  sends by the attempt's id, again until it reaches the server, and logs with the step it ended at,
+  never a text: **deferred**, nothing of it left in the pane, because nothing was pasted, it took
+  its text back, or the harness cleared the line with no one typing; **stopped** by someone at the
+  terminal typing into or over its text, which reads as their choice, not a failure; **failed**, a
+  pane it could not read or write, a Backspace that did not remove one character, a message that did
+  not show exactly, or a harness that did not take it; and **sent**. The server fills in only the
+  claim the id names: a deferred attempt releases it, and the others settle it as the latest nudge.
+  It stamps the agent's next check-in after a claim at once, so the operator sees a session **not
+  responding to the nudge** only while a nudge has had no check-in since; one whose outcome never
+  arrived counts as sent. A nudge that failed or was stopped strands the thread it was for at once;
+  only a failed nudge, and nudge text left at the prompt, read as problems. A nudge the observer
+  finds the session not ready for puts nothing in the pane, is not claimed and is no nudge: the
+  bridge tries again about a second later while one is due, reading only the pane.
+- **Why it cannot, on the session, for the operator alone.** The bridge's report says why the
+  session cannot be monitored or nudged, where it cannot, as one reason from a fixed list with since
+  when: no socket, a pane it cannot read or that is not the session's alone, a profile or nudge type
+  it does not know, the nudge off, a generic profile, claims the server refused, or nudge text left
+  at the prompt. It reports a reason whenever it arises, not only as it starts, since trouble can
+  begin after `register`. The operator sees it on the session; the agent is not told, since the
+  trouble is the operator's to deal with, and no tool's answer changes.
 - **Off unless asked for.** The nudge needs a nudge type, `--nudge tmux` or `AGENTION_NUDGE`, and
   the socket monitoring reads. A type the bridge does not know, or one without a socket, is logged
   once and leaves the nudge off; the tools work as without it. Once its registration is approved,
@@ -102,8 +123,9 @@ every check that can be made before each key.
   monitors, whose first process must be one of the bridge's own ancestors, and the bridge gains no
   access it lacked.
 - A screen the profile reads wrong can still take the nudge's texts: Claude Code's vim normal mode
-  looks like its prompt, where Backspace moves rather than deletes, so the clear step fails and the
-  warning stays in the input, never submitted.
+  looks like its prompt, where Backspace moves rather than deletes, so the clear step fails, the
+  warning stays in the input, never submitted, and the nudge reads as failed. Its marked text then
+  holds later nudges off until someone clears it, which the session shows.
 - A harness with no profile of its own is monitored but never nudged; nudging it waits on a profile
   captured from its screens.
 - `stranded` on the operator API's version 1 changes what it means in place, by the maintainer's
