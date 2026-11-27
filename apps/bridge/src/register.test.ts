@@ -205,6 +205,11 @@ describe("register", () => {
       "a name the API refuses, over a fallback it accepts",
       { AGENTION_AGENT: "Builder", AGENTWORKS_AGENT: "builder" },
     ],
+    [
+      "a session name the API refuses, over a fallback it accepts",
+      { AGENTION_SESSION: "Bad name", AGENTWORKS_SESSION: "ok" },
+    ],
+    ["a name of spaces alone", { AGENTION_AGENT: " ", AGENTWORKS_AGENT: "builder" }],
   ])("answers in plain text, creating nothing, given %s", async (_, environment) => {
     const bridge = await harness.bridge(environment);
     for (const tool of ["register", "thread_list"]) {
