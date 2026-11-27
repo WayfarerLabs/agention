@@ -75,6 +75,8 @@ describe("a mermaid block", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(document.querySelector("pre code")?.textContent).toBe(source);
+    // The source is a code block, whose button copies it; the image has none.
+    expect(screen.getAllByRole("button", { name: "Copy code" })).toHaveLength(1);
     fireEvent.click(toggle);
     expect(document.querySelector("pre")).toBeNull();
   });

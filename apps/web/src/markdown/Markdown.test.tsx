@@ -21,19 +21,42 @@ const links = (root: HTMLElement) =>
   }));
 
 // Nothing the text holds may become markup that runs, loads or styles: every
-// rendering is checked for these.
+// rendering is checked for these, all of it. A code block holds exactly its
+// code and the page's own copy button and live region, with attributes none
+// of which the text gives; the button's icon is the one SVG allowed, and the
+// block, the button and the region bring the only classes not listed below.
 function expectInert(root: HTMLElement): void {
+  const icon = "button.copy-button > svg.icon";
+  const attributes = (element: Element | undefined) => element?.getAttributeNames().sort();
+  for (const block of root.querySelectorAll(".code-block")) {
+    const [code, button, region, ...rest] = block.children;
+    expect(rest).toEqual([]);
+    expect(code?.matches("pre")).toBe(true);
+    expect(button?.matches("button.copy-button")).toBe(true);
+    expect(attributes(button)).toEqual(["aria-label", "class", "type"]);
+    expect([...(button?.children ?? [])].map((child) => child.matches(icon))).toEqual([true]);
+    expect(region?.matches("span.visually-hidden")).toBe(true);
+    expect(attributes(region)).toEqual(["aria-atomic", "aria-live", "class"]);
+    expect(region?.textContent).toBe("");
+  }
   expect(
-    root.querySelectorAll("img, script, iframe, object, embed, style, svg, video, audio, form"),
-  ).toHaveLength(0);
+    [
+      ...root.querySelectorAll(
+        "img, script, iframe, object, embed, style, svg, video, audio, form",
+      ),
+    ].filter((element) => !element.matches(icon)),
+  ).toEqual([]);
   for (const element of root.querySelectorAll("*")) {
     expect(element.hasAttribute("style")).toBe(false);
     for (const attribute of element.getAttributeNames()) {
       expect(attribute.startsWith("on")).toBe(false);
     }
-    if (element.hasAttribute("class")) {
+    if (element.hasAttribute("class") && !element.matches(icon)) {
       expect([
         "markdown",
+        "code-block",
+        "copy-button",
+        "visually-hidden",
         "raw",
         "plain",
         "host",

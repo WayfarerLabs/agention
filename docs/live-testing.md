@@ -165,20 +165,21 @@ disagreement is the finding.
   microphone and what it says beside Send on a short screen, its failures keeping the recording for
   a retry, and a recording stopped when the page is hidden, alike in the composer, an ask's
   own-words field and the new-thread sheet; and Read aloud and Stop, in WebKit too where it
-  installs; a message's copy button, with its details folded and open; attachments: **Attach**, its
-  menu on a touch device (each item's picker, Escape and a tap elsewhere), a pasted image and a
-  paste carrying text, progress, **Remove**, **Retry** and **Upload again**, **Send** waiting on
-  uploads, a message of files alone, an edit keeping and removing files, a new thread started with
-  files and its sheet cancelled with uploads, each kind of file shown in place, **Show image** and
-  **Show text**, a PDF's tab, **Download**, an `attachment:` link, a missing file, the thread's
-  **Files** fold, and **Storage**, on a phone's width too; and pull requests and branches: a
-  message's one entry and its fold, the thread's fold, a row's one entry, beside its checkbox too,
-  and its mark counting several, each entry leading to the thread list filtered by it, alone from a
-  message or the thread's fold and added to the list on screen from a row, but selecting the row in
-  its place when held by touch, and when tapped while a touch selection is under way, the forge link
-  beside a message's or the fold's entry opening the forge's page in a new tab, and the filter
-  sheet's **Pull request** and **Branch** with their counts, chips, and the address, on a phone's
-  width too (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
+  installs; a message's copy button, with its details folded and open, and a code block's, from the
+  keyboard and beside a long line; attachments: **Attach**, its menu on a touch device (each item's
+  picker, Escape and a tap elsewhere), a pasted image and a paste carrying text, progress,
+  **Remove**, **Retry** and **Upload again**, **Send** waiting on uploads, a message of files alone,
+  an edit keeping and removing files, a new thread started with files and its sheet cancelled with
+  uploads, each kind of file shown in place, **Show image** and **Show text**, a PDF's tab,
+  **Download**, an `attachment:` link, a missing file, the thread's **Files** fold, and **Storage**,
+  on a phone's width too; and pull requests and branches: a message's one entry and its fold, the
+  thread's fold, a row's one entry, beside its checkbox too, and its mark counting several, each
+  entry leading to the thread list filtered by it, alone from a message or the thread's fold and
+  added to the list on screen from a row, but selecting the row in its place when held by touch, and
+  when tapped while a touch selection is under way, the forge link beside a message's or the fold's
+  entry opening the forge's page in a new tab, and the filter sheet's **Pull request** and
+  **Branch** with their counts, chips, and the address, on a phone's width too
+  (`docs/operator-guide.md` "Signing in", "Voice", "Attachments" and "Approving agents";
   `docs/web-ui.md`). Real-phone passkeys, Send above a phone's keyboard while writing, dictation
   with a real provider, diagrams and their viewer in iOS Safari, what each item of Attach's menu
   opens on a real phone, holding a row down to select it in Android Chrome, After sending's pick

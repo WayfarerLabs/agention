@@ -2068,8 +2068,8 @@ button.detail-fold[aria-expanded="false"] > .icon {
   margin: 0;
 }
 
-/* An options button, and a message's Copy beside it: an icon alone, quiet
-   until hovered. */
+/* An options button, and a Copy, a message's beside it or a code block's:
+   an icon alone, quiet until hovered. */
 button.options-button,
 button.copy-button {
   display: inline-flex;
@@ -2943,6 +2943,30 @@ button.older[aria-disabled="true"] {
 .markdown pre {
   white-space: pre;
   overflow-wrap: normal;
+}
+
+/* A code block with its copy button: the button has a column of its own at
+   the block's top right, so it never covers the code, and stays in place
+   while the code scrolls sideways beside it. The gap, as wide as the code's
+   own padding, keeps a clipped line clear of the icon. The block's
+   background spans both. */
+.code-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: start;
+  margin: 0 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface-2);
+}
+
+.code-block > pre {
+  margin: 0;
+  background: transparent;
+}
+
+.code-block > button.copy-button:hover {
+  background: var(--color-surface);
 }
 
 .markdown :not(pre) > code {
