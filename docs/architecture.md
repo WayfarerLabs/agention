@@ -1304,9 +1304,10 @@ field or bound the server does not have.
 
 - **Operations.** Each operation has its path, an `operationId` of its mount's name and its own,
   such as `operatorListThreads`, its summary, its parameters and body described as input and its
-  answer as output, and its authentication: on the operator mount the `apiKey` bearer scheme with
-  the scope the operation requires, and on the agent mount the `agentToken` scheme and the agent
-  API's version header. `GET /api/operator` is in it too.
+  answer as output, and its authentication: on the operator mount the `apiKey` bearer scheme, whose
+  description lists every scope with what it grants, with the scope the operation requires, and on
+  the agent mount the `agentToken` scheme and the agent API's version header. `GET /api/operator` is
+  in it too.
 - **Files.** An upload's body is described as any media type, `*/*`, with what its `Content-Type`
   declares, and a file read's answer as its served types, with the `Range` header, 206 and 416.
 - **Refusals.** Every refusal is one shared `error` response, whose description gives each error
@@ -2350,12 +2351,13 @@ focus to the open section's heading.
   judge, when it is saved. After a save or a clear, focus waits for the settings the server then
   holds before moving to the control that shows them, and moves only from the control pressed.
 - **API keys** (`ApiKeys.tsx`, with its form in `ApiKeyForm.tsx`) lists the keys as the server does
-  and takes what [API keys](operator-guide.md#api-keys) describes. A scope that a chosen one
-  includes, by the API's own `holdsScope`, shows chosen with it and unavailable, and is not sent. A
-  new key's secret lives only in the page's memory, never in storage, the address or a log, until
-  Done dismisses it. Create an API key is unavailable while the keys are at their limit
-  (Authentication's [API keys](#api-keys)), and creating and revoking while the sign-in is not
-  recent, each saying why.
+  and takes what [API keys](operator-guide.md#api-keys) describes. Each scope shows what it grants
+  from the API's `scopeDescription`, which the API reference's API key scheme lists every scope with
+  too. A scope that a chosen one includes, by the API's own `holdsScope`, shows chosen with it and
+  unavailable, and is not sent. A new key's secret lives only in the page's memory, never in
+  storage, the address or a log, until Done dismisses it. Create an API key is unavailable while the
+  keys are at their limit (Authentication's [API keys](#api-keys)), and creating and revoking while
+  the sign-in is not recent, each saying why.
 - **Saved views** (`SavedViews.tsx`) lists the views as the server does and renames and removes
   them, with the name form Groups and tags uses (`Organizer.tsx`); saving a view and replacing its
   list are the thread list's.

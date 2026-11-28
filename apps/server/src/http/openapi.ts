@@ -3,6 +3,8 @@ import {
   agentApiHeader,
   errorBody,
   oversizedBodyStatus,
+  scopeDescription,
+  scopes,
   statusByErrorCode,
   unsatisfiableRangeStatus,
   unsizedBodyStatus,
@@ -193,14 +195,14 @@ function operationOf(schemas: JsonSchemas, mount: Mount, declaration: Declaratio
   const name = declaration.name.charAt(0).toUpperCase() + declaration.name.slice(1);
   // A key's scope is listed; an agent's token always holds what every agent
   // operation requires, so none is.
-  const scopes =
+  const required =
     mount.security === "apiKey" && declaration.scope !== undefined ? [declaration.scope] : [];
   return {
     operationId: `${mount.tag}${name}`,
     summary: declaration.summary,
     ...(declaration.description === undefined ? {} : { description: declaration.description }),
     tags: [mount.tag],
-    security: mount.security === undefined ? [] : [{ [mount.security]: scopes }],
+    security: mount.security === undefined ? [] : [{ [mount.security]: required }],
     ...(parameters.length === 0 ? {} : { parameters }),
     ...(declaration.body === undefined
       ? {}
@@ -270,8 +272,8 @@ export function apiDocument(): JsonObject {
           description:
             "An API key the operator created in Agention's Settings, as Authorization: " +
             "Bearer with the secret Settings showed once. A request carrying a cookie is " +
-            "refused. The scope an operation lists is the one it requires; a write " +
-            "scope includes its resource's read, and sessions:approve includes sessions:read.",
+            "refused. The scope an operation lists is the one it requires. What each scope " +
+            `grants: ${scopes.map((each) => `${each}: ${scopeDescription(each)}`).join(" ")}`,
         },
         agentToken: {
           type: "http",

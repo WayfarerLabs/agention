@@ -315,12 +315,16 @@ revoked or expires (one check for both), which the store's `apps/server/src/stor
 `apps/server/src/http/files.test.ts` (the same, for a read) and
 `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
 adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
-an existing scope grants (`SECURITY.md` "API keys"). Look for an operator route added outside the
-list, an operation with a scope wider or narrower than what it does, a write across resources beyond
-the tag rename's, a read-scoped operation that writes or takes a body, a store operation or a file's
-chunk read or write that leaves its scope to the mount, an operation whose body or answer is bytes
-but not declared so, a key-reachable route that manages credentials or Settings, and a scope whose
-meaning changes.
+an existing scope grants (`SECURITY.md` "API keys"). What each scope grants is written once, in
+`scopeGrants` in `packages/api/src/scopes.ts`, which the API key form and the API reference's API
+key scheme take it from; where `SECURITY.md`, `docs/operator-guide.md`, and `docs/architecture.md`
+say what each scope grants, they say it again for their readers, and change with it. Look for an
+operator route added outside the list, an operation with a scope wider or narrower than what it
+does, a write across resources beyond the tag rename's, a read-scoped operation that writes or takes
+a body, a store operation or a file's chunk read or write that leaves its scope to the mount, an
+operation whose body or answer is bytes but not declared so, a key-reachable route that manages
+credentials or Settings, a scope whose meaning changes, and a grant written outside `scopeGrants` or
+a doc's account of the scopes that disagrees with it.
 
 ## A19. The operator API contract and its document
 
