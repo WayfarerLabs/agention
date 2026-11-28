@@ -67,6 +67,12 @@ export const statusFilter = threadStatus.describe(
     "live message withdraws: open while any is open; otherwise withdrawn when every one was " +
     "withdrawn, and answered when there are any; none when there are none.",
 );
+export const settledFilter = z
+  .enum(["only", "hide"])
+  .describe(
+    "Settled threads, those whose latest message settles them: only keeps them alone, and " +
+      "hide leaves them out; absent shows them among the rest.",
+  );
 export const unreadFilter = z
   .boolean()
   .default(false)
@@ -228,14 +234,14 @@ export const branchesFilter = distinctEntries(
     "owner/name:branch, its repository matched ignoring case.",
 );
 
-// The operator's filters, across sessions: search, which reaches what
-// messages say; status, unread and archived, as a session's list takes them;
-// the properties of open asks, which one open ask must meet together; read
-// by the session, unread or stranded; agents, sessions and topics, several
-// of each, a topic named with its session; the operator's session groups
-// and tags, several of each; and the pull requests and branches the threads'
-// live messages name, several of each. They come in the order the operator
-// is offered them, which a list's address in the web UI keeps.
+// The operator's filters, across sessions: search, which reaches what messages
+// say; status, unread and archived, as a session's list takes them; the
+// properties of open asks, which one open ask must meet together; whether they
+// are Settled; read by the session, unread or stranded; agents, sessions and
+// topics, several of each, a topic named with its session; the operator's
+// session groups and tags, several of each; and the pull requests and branches
+// the threads' live messages name, several of each. They come in the order the
+// operator is offered them, which a list's address in the web UI keeps.
 const listFilters = {
   search: messageSearchFilter.optional(),
   status: statusFilter.optional(),
@@ -243,6 +249,7 @@ const listFilters = {
   impact: impactFilter.optional(),
   overdue: queryBoolean(overdueFilter),
   effort: effortFilter.optional(),
+  settled: settledFilter.optional(),
   unread: queryBoolean(unreadFilter),
   agent_read: agentReadFilter.optional(),
   agent: queryList(agentsFilter).optional(),
@@ -371,6 +378,7 @@ function valueCounts<T extends string>(values: readonly T[]) {
 // reset is what the list holds with no filter on.
 export const threadCounts = z.object({
   status: valueCounts(threadStatus.options),
+  settled: valueCounts(settledFilter.options),
   priority: valueCounts(priority.options),
   impact: valueCounts(impactFilter.options),
   overdue: z.object({ any: sequence, overdue: sequence }),

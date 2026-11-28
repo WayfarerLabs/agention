@@ -157,6 +157,11 @@ export function chipsOf(view: ThreadsView, known?: GroupsAndTags): Chip[] {
       label: effortLabel[level],
       remove: { effort: undefined },
     })),
+    ...chip(view.settled, (settled) => ({
+      key: "settled",
+      label: plain(settled === "only" ? "Settled only" : "Settled hidden"),
+      remove: { settled: undefined },
+    })),
     ...chip(view.unread, () => ({
       key: "unread",
       label: plain("Unread"),

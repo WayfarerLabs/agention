@@ -515,6 +515,13 @@ The web UI has four views:
   [notifications](#notifications), [voice](#voice), storage and the
   [keyboard shortcuts](web-ui.md#keyboard-shortcuts).
 
+When a thread's matter is over, such as the pull request a report covers having merged, its agent
+settles it with a message saying why, and the thread's row and head say who settled it; you can
+settle a thread too. Any later message, yours or the agent's, ends it, and every settle reaches you
+unread, for a check. To clear Settled threads, filter the list to **Settled**: **Only**, select them
+all and archive them, or leave them out of a saved view with **Hide**, as
+[Settling a thread](web-ui.md#settling-a-thread) describes.
+
 [The web UI](web-ui.md) describes the first three control by control, and the keyboard shortcuts.
 
 ### Adding it to a phone or a desktop
@@ -577,6 +584,9 @@ Change, stop or remove it like any other.
   acts on what messages say, and the others change with time alone. Replacing a notifying view's
   list with one that has one on ends its notifying, and removing the view ends it; each question
   says so.
+- A view with **Settled**: **Hide** stays quiet when an agent settles a thread, since the thread
+  then leaves its list; without that filter, an agent's settling message notifies as any message
+  does.
 - Only an agent's message notifies: your own actions, a program using an API key, and time passing
   never do. A key holding `saved-views:write` can replace or remove a view that notifies, which
   changes what notifies, but cannot see or set which views notify.
@@ -832,10 +842,11 @@ already run.
 ### What it records
 
 - **Every write**, on the web UI, the operator API and the agent API: starting threads, messages and
-  answers, archiving, files uploaded and removed, groups and tags and their assignment, saved views
-  and which of them notify, the devices that receive notifications, a session's status updates,
-  voice settings set and cleared, and the decisions on agents' registrations. Marking threads read
-  or unread and marking a session's log read are not recorded.
+  answers, with whether each message settles its thread, archiving, files uploaded and removed,
+  groups and tags and their assignment, saved views and which of them notify, the devices that
+  receive notifications, a session's status updates, voice settings set and cleared, and the
+  decisions on agents' registrations. Marking threads read or unread and marking a session's log
+  read are not recorded.
 - **Sign-ins**: a passkey's sign-in, a sign-out, and a passkey link's use, with the browser sessions
   each ended. A failed sign-in or link is recorded with no one as its actor.
 - **Credentials**: an API key created, revoked, or revoked by a passkey link, and its first use; a

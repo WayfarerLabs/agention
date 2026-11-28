@@ -40,6 +40,8 @@ your terminal, ask for that through Agention too. Only the operator can tell you
 - **Ask**: a request in a message for the operator's answer, decision, approval or action. Its
   `impact`, `priority` and `effort` say how it affects your work, what delay costs and what
   answering takes.
+- **Settled**: a thread whose latest message settles it, saying its matter is over and why. Either
+  you or the operator may settle a thread, and any later message, from either, ends it.
 
 ## Follow the bridge
 
@@ -67,12 +69,14 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    again under new numbers.
 3. **Check** for answers with `message_wait` at natural points in your work. Check for yourself what
    you can see, too, such as the state of the pull request an ask is about, and withdraw an ask the
-   world has settled.
+   world has made unneeded.
 4. **Read** each thread it returns with `thread_get` after its `read_through`, act on the answers,
    and mark what you have handled with `thread_read`. An answer's `text` beside its picks is the
    operator's notes and part of the answer, as binding as the pick. An answer that reports something
    you can check, such as "Merged", check before you rely on it, and say in the thread when it does
-   not hold.
+   not hold. When someone else settles a thread of yours, stop work on its matter and archive it;
+   reply only if a reply is needed, since a reply ends Settled. When someone writes in a thread you
+   settled, act on it, and settle it again only if its matter is still over.
 5. **Keep running** once your other work is done, for as long as you have open asks or unread
    messages, checking in the way that costs least. Report `idle`, with a note, when you start
    waiting with nothing else to do, with or after your last write of any kind: give `state` and
@@ -84,7 +88,9 @@ running in the loop below. Unless it says otherwise, nothing arrives on its own:
    subagent calling `message_wait`, let it wait. Otherwise wait with the longest `wait_seconds`,
    pass `since` back, and say nothing between checks. Stop when none remain, or when the operator
    tells you to.
-6. **Archive** a thread with `thread_archive` once it needs nothing more from you.
+6. **Archive** a thread with `thread_archive` once it needs nothing more from you. When its matter
+   is over for everyone, not only for you, settle it first: send a message with `settles` whose
+   `text` says why, after withdrawing the asks it no longer needs, in that message or before.
 7. **Report `stopped`** before you stop, with its outcome, on your last message or with
    `session_update`: `completed` when the work is done, `withdrawn` when the operator called it off,
    `stalled` when you cannot go on. When something starts you again, such as the operator at your
@@ -122,8 +128,8 @@ state, such as merged, in your text.
 
 Whenever a pull request moves significantly, when it is opened, marked ready for review, reviewed,
 merged or closed, list your threads about it with `thread_list` and its `pull_request` (`branch` for
-a branch), and bring each up to date: say what changed, withdraw the asks the move settled, and
-archive what is done.
+a branch), and bring each up to date: say what changed, withdraw the asks the move made unneeded,
+and settle and archive what is done. A merge is the commonest reason to settle a thread.
 
 ## Your terminal and Agention
 
@@ -131,7 +137,7 @@ The operator may follow you at your terminal, in Agention, or both, switching as
 either should give them the whole picture. Show at your terminal what you send them in Agention, in
 your output or with a question tool that does not wait, such as Codex's `request_user_input_async`,
 and carry on. What they tell you at your terminal applies to your threads: replace an ask it
-changes, and withdraw one it settles.
+changes, and withdraw one it answers.
 
 ## Rules
 
@@ -155,6 +161,8 @@ changes, and withdraw one it settles.
   natural points.
 - **A fresh random `request_id` for every write.** Use a new UUID: others can share your session, so
   a predictable id can collide.
+- **Never settle a thread to drop a question that still needs the operator.** Settling says the
+  matter is over for everyone; while the operator still has to decide something, keep it asked.
 - **Keep your messages current.** Replace a message of yours that no longer holds (`replaces`) and
   withdraw an ask you no longer need answered (`withdrawals`); `message_send` says how. That
   includes an ask whose impact, priority or effort has changed, because the work it is for now stops

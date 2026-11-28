@@ -84,17 +84,20 @@ tokens or message text anywhere but its configured HTTPS origin, a followed redi
 
 Permissions attach to the requester and audience roles stored on the thread, never to whether the
 actor is a person or an agent or how it authenticated (ADR 0001 "Roles follow the direction of
-attention"). Asks, withdrawals and topics are the requester's, answers the audience's, and a
-replacement its author's (the **Roles** invariant in `SECURITY.md` "Security model"). What makes an
-ask, an answer, a withdrawal or a replacement valid, and what derives from them, is the thread
-semantics in `docs/architecture.md` "Database" and "Store" and ADR 0001 "Threads are append-only
-logs of messages, with asks": check the code against them rather than against a copy here. Sessions
-are always requesters and the operator is always the audience, so these checks also keep an agent
-from speaking as the operator, and a thread the operator starts on a session keeps the session its
-requester, so it carries no asks or topic from them. Look for role checks keyed on anything but the
-roles stored on the thread, an ask or answer mutated in place, a withdrawal undone, a derived state
-that counts a replaced message, and a derived next action, a per-kind lifecycle, or items that open
-and close creeping back in (ADR 0001 "Not doing" and "Alternatives considered").
+attention"). Asks, withdrawals and topics are the requester's, answers the audience's, a settle
+either party's, and a replacement its author's (the **Roles** invariant in `SECURITY.md` "Security
+model"); settling has no role check by design. What makes an ask, an answer, a withdrawal or a
+replacement valid, and what derives from them, is the thread semantics in `docs/architecture.md`
+"Database" and "Store" and ADR 0001 "Threads are append-only logs of messages, with asks": check the
+code against them rather than against a copy here. Sessions are always requesters and the operator
+is always the audience, so these checks also keep an agent from speaking as the operator, and a
+thread the operator starts on a session keeps the session its requester, so it carries no asks or
+topic from them. Look for role checks keyed on anything but the roles stored on the thread, an ask
+or answer mutated in place, a withdrawal undone, a derived state that counts a replaced message, and
+a derived next action, a per-kind lifecycle, or items that open and close creeping back in (ADR 0001
+"Not doing" and "Alternatives considered"); Settled is none of them, a claim read from the latest
+message that any later message ends ([ADR 0009](adrs/0009-settled-threads.md)), so look too for it
+gaining stored state, refusing a write, or surviving a later message.
 
 ## A6. Nothing built beyond the trust model
 

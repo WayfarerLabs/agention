@@ -41,7 +41,8 @@ import {
   AbsenceReason,
   absenceOf,
   plural,
-  settledWords,
+  asksOutcomeWords,
+  settledByWords,
   Spoken,
   threadWhereabouts,
   Time,
@@ -402,6 +403,10 @@ function ThreadPage({
   const [detailsShown, setDetailsShown] = useState(
     restored !== undefined && !blank(restored.detail),
   );
+  // Whether the composer's message settles the thread, which a change or an
+  // edit of the settling message that is the thread's latest loads on, so its
+  // replacement settles again unless the operator turns it off.
+  const [settles, setSettles] = useState(false);
   const [staged, setStaged] = useState<Staged | undefined>(undefined);
   // The asks whose cards are recording their own words.
   const [answersRecording, setAnswersRecording] = useState<ReadonlySet<number>>(new Set());
@@ -676,12 +681,13 @@ function ThreadPage({
     }
   };
   // A change or an edit is a whole message, so it starts only from an empty
-  // composer, loading the text, detail and files of the message it replaces,
-  // before anything is staged, and stages the parts it carries again
-  // unchanged. A change also needs the asks its message
+  // composer, with Settle the thread unchecked, loading the text, detail and
+  // files of the message it replaces, before anything is staged, and stages the
+  // parts it carries again unchanged. A change also needs the asks its message
   // answered, from the page or from the server; a message that fails to load
   // stages nothing.
-  const drafting = staged !== undefined || !blank(text) || !blank(detail) || files.files.length > 0;
+  const drafting =
+    staged !== undefined || !blank(text) || !blank(detail) || files.files.length > 0 || settles;
   const loading = useAction();
   const messagesAt = async (seqs: number[]): Promise<Message[] | undefined> => {
     const onPage = seqs.flatMap((seq) => find(seq) ?? []);
@@ -712,6 +718,10 @@ function ThreadPage({
     if (message.detail !== undefined) {
       setDetailsShown(true);
     }
+    // It settles again only while the message is the thread's latest, so the
+    // Settled thread stays so; an older settling message's replacement would
+    // otherwise settle the thread over a later reply.
+    setSettles(message.settles === true && message.seq === thread.last_seq);
     files.keep(message);
     setStaged(staging);
   };
@@ -790,13 +800,14 @@ function ThreadPage({
     focusOn({ seq: first.seq, ask: first.ask });
   };
   // unstage drops what is staged; a change or an edit takes the text,
-  // detail and files it loaded with it, and folds the Details box. Files
-  // added meanwhile stay.
+  // detail, settling and files it loaded with it, and folds the Details box.
+  // Files added meanwhile stay.
   const unstage = () => {
     if (staged?.replaces !== undefined) {
       setText("");
       setDetail("");
       setDetailsShown(false);
+      setSettles(false);
     }
     setStaged(undefined);
   };
@@ -910,8 +921,13 @@ function ThreadPage({
           ))}
           · started <Time value={thread.created_at} />
         </p>
-        {settledWords(thread) !== undefined && (
-          <p className="muted thread-status">{settledWords(thread)}</p>
+        {thread.settled_by !== undefined && (
+          <p className="thread-status settled">
+            {settledByWords(thread)} <Time value={thread.updated_at} />
+          </p>
+        )}
+        {asksOutcomeWords(thread) !== undefined && (
+          <p className="muted thread-status">{asksOutcomeWords(thread)}</p>
         )}
         {thread.stranded === true && <Stranded thread={thread} />}
         {tags.length > 0 && <Tags tags={tags} />}
@@ -996,6 +1012,8 @@ function ThreadPage({
         setDetail={setDetail}
         detailsShown={detailsShown}
         setDetailsShown={setDetailsShown}
+        settles={settles}
+        setSettles={setSettles}
         staged={staged}
         stage={setStaged}
         unstage={unstage}

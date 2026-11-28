@@ -197,9 +197,26 @@ export function threadWhereabouts(thread: ThreadSummary): Whereabouts {
   };
 }
 
-// settledWords says, muted, of a thread with no ask open, that its asks were
-// answered, or withdrawn, with the latest reason.
-export function settledWords(thread: ThreadSummary): string | undefined {
+// settledByWords says who settled a thread while it is Settled: "you" for
+// the operator, who reads the web UI, and for a session, its name alone when
+// it is the thread's own, whose agent the thread already names.
+export function settledByWords(thread: ThreadSummary): string | undefined {
+  const by = thread.settled_by;
+  if (by === undefined) {
+    return undefined;
+  }
+  const who =
+    by.kind === "person"
+      ? "you"
+      : by.agent === thread.agent && by.session === thread.session
+        ? by.session
+        : authorName(by);
+  return `Settled by ${who}`;
+}
+
+// asksOutcomeWords says, muted, of a thread with no ask open, that its asks
+// were answered, or withdrawn, with the latest reason.
+export function asksOutcomeWords(thread: ThreadSummary): string | undefined {
   if (thread.status === "answered") {
     return "Answered";
   }

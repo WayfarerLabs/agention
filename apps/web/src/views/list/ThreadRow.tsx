@@ -19,7 +19,8 @@ import {
   plural,
   priorityLabel,
   priorityTone,
-  settledWords,
+  asksOutcomeWords,
+  settledByWords,
   Spoken,
   threadWhereabouts,
   Time,
@@ -187,7 +188,14 @@ export function ThreadRow({
   const { open_asks: asks } = thread;
   const ask = asks.lead;
   const Heading = headings[level];
-  const status = ask === undefined ? settledWords(thread) : undefined;
+  // A Settled thread says so, and who settled it, in words, since a phone
+  // shows no tooltip, ahead of how its asks ended, so a narrow row that cuts
+  // the line still shows it.
+  const statusParts = [
+    settledByWords(thread),
+    ask === undefined ? asksOutcomeWords(thread) : undefined,
+  ].filter((part) => part !== undefined);
+  const status = statusParts.length === 0 ? undefined : statusParts.join(" · ");
   const notes = strandedTags(thread);
   const classes = ["thread-row", thread.unread > 0 ? "unread" : "", selected ? "selected" : ""];
   return (

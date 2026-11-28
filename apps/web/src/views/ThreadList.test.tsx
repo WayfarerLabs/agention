@@ -246,6 +246,43 @@ describe("the thread list", () => {
     expect(status("Pick a database")).toBeNull();
   });
 
+  it("marks a Settled thread's row in words naming who settled it, ahead of how its asks ended", async () => {
+    serve([
+      threadSummary({
+        number: 1,
+        title: "By the session",
+        status: "answered",
+        settled_by: { kind: "session", agent: "builder", session: "main" },
+      }),
+      threadSummary({
+        number: 2,
+        title: "By another session",
+        settled_by: { kind: "session", agent: "reviewer", session: "nightly" },
+      }),
+      threadSummary({
+        number: 3,
+        title: "By the operator",
+        settled_by: { kind: "person", name: "operator" },
+      }),
+      threadSummary({ number: 4, title: "Answered only", status: "answered" }),
+      threadSummary({ number: 5, title: "Open", status: "none" }),
+    ]);
+    renderAt("/");
+    await screen.findByText("By the session");
+    const status = (name: string) =>
+      screen.getByRole("link", { name: new RegExp(name) }).querySelector(".row-status")
+        ?.textContent;
+    // The thread's own session by its name alone, another by its path, ahead
+    // of how the asks ended; the operator, who reads it, in other words.
+    const own = status("By the session") ?? "";
+    expect(own.indexOf("main")).toBeLessThan(own.indexOf(status("Answered only") ?? "-"));
+    expect(own).not.toContain("builder");
+    expect(status("By another session")).toContain("reviewer/nightly");
+    expect(status("By the operator")).not.toContain("operator");
+    expect(status("By the operator")).not.toBe(status("Answered only"));
+    expect(status("Open")).toBeUndefined();
+  });
+
   it("marks every stranded thread with why: its session stopped, is quiet or has no credential", async () => {
     const lastSeen = "2026-10-27T09:00:00.000Z";
     const quiet = { last_seen_at: lastSeen, quiet: true };
@@ -679,6 +716,7 @@ describe("a row's due mark", () => {
 // a test can tell which is shown where.
 const counts: ThreadCounts = {
   status: { any: 30, open: 9, answered: 34, withdrawn: 35, none: 36 },
+  settled: { any: 45, only: 46, hide: 47 },
   priority: { any: 29, urgent: 6, high: 7, normal: 8, low: 10 },
   impact: { any: 28, blocking: 5, assuming: 4 },
   overdue: { any: 27, overdue: 3 },
@@ -759,6 +797,7 @@ describe("the filter sheet", () => {
       "Impact",
       "Due",
       "Effort",
+      "Settled",
       "Read",
       "Read by agent",
       "Archived",
@@ -885,6 +924,26 @@ describe("the filter sheet", () => {
     await waitFor(() => expect(address()).toBe("?agent_read=unread"));
   });
 
+  it("takes Only and Hide for Settled, and Show turns it off", async () => {
+    serve([]);
+    renderAt("/");
+    await openSheet();
+    expect(checked("Settled")).toContain("Show");
+    fireEvent.click(segment("Settled", "Only"));
+    await waitFor(() => expect(address()).toBe("?settled=only"));
+    expect(lastQuery()?.get("settled")).toBe("only");
+    // Each value on shows a chip of its own.
+    expect(chips()).toHaveLength(1);
+    const only = chipText(chips()[0] as HTMLElement);
+    fireEvent.click(segment("Settled", "Hide"));
+    await waitFor(() => expect(address()).toBe("?settled=hide"));
+    expect(chips()).toHaveLength(1);
+    expect(chipText(chips()[0] as HTMLElement)).not.toBe(only);
+    fireEvent.click(segment("Settled", "Show"));
+    await waitFor(() => expect(address()).toBe(""));
+    expect(chips()).toHaveLength(0);
+  });
+
   it("counts the threads each value keeps, from counts of the list's filters loaded while it is open", async () => {
     serve([]);
     serveCounts();
@@ -915,6 +974,9 @@ describe("the filter sheet", () => {
     expect(segment("Status", "Withdrawn").closest("label")?.textContent).toContain("(35)");
     expect(segment("Status", "No asks").closest("label")?.textContent).toContain("(36)");
     expect(segment("Effort", "Under 15 minutes").closest("label")?.textContent).toContain("(11)");
+    expect(segment("Settled", "Show").closest("label")?.textContent).not.toContain("(");
+    expect(segment("Settled", "Only").closest("label")?.textContent).toContain("(46)");
+    expect(segment("Settled", "Hide").closest("label")?.textContent).toContain("(47)");
     expect(segment("Archived", "Show").closest("label")?.textContent).toContain("(33)");
     expect(segment("Archived", "Hide").closest("label")?.textContent).not.toContain("(");
     // Reset filters counts the threads with none on.
@@ -1612,6 +1674,7 @@ describe("the chips", () => {
       "impact=assuming",
       "overdue=true",
       "effort=under_1h",
+      "settled=only",
       "unread=true",
       "agent_read=stranded",
       "agent=builder&agent=reviewer",
@@ -1653,6 +1716,12 @@ describe("the chips", () => {
       chip.focus();
       fireEvent.click(chip);
     };
+    // The chip on Settled names which of its threads are kept.
+    expect(chipText(at("settled=only"))).not.toBe("");
+    remove(at("settled=only"));
+    await waitFor(() => expect(new URLSearchParams(address()).has("settled")).toBe(false));
+    expect(chips()).toHaveLength(on.length - 1);
+    on.splice(on.indexOf("settled=only"), 1);
     remove(chips()[on.indexOf("impact=assuming")] as HTMLElement);
     await waitFor(() => expect(new URLSearchParams(address()).has("impact")).toBe(false));
     // The chip is gone, and focus moves to Filters.

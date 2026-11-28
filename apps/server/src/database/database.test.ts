@@ -644,12 +644,14 @@ describe("a database an earlier release wrote", () => {
   // The columns a later migration adds to a table these databases already
   // hold, which a test leaves out: those it fills with random values, which a
   // test cannot know, the instance's id and each browser session's, which
-  // audit-schema.test.ts checks; and those notifications add empty, the push
-  // key and the notified mark, which notifications-schema.test.ts checks.
+  // audit-schema.test.ts checks; those notifications add empty, the push key
+  // and the notified mark, which notifications-schema.test.ts checks; and
+  // whether a message settles its thread, which no earlier message does.
   const laterColumns: Readonly<Record<string, readonly string[]>> = {
     instance: ["uid", "vapid_private_key"],
     browser_sessions: ["id"],
     thread_marks: ["notified_seq"],
+    messages: ["settles"],
   };
 
   // earlier keeps the tables of rows that a database had before it was opened
@@ -725,6 +727,9 @@ describe("a database an earlier release wrote", () => {
       const after = rowsOf(database);
       expect(earlier(after, before)).toEqual(before);
       expect([after.session_marks, after.session_updates]).toEqual([[], []]);
+      expect(database.prepare("SELECT DISTINCT settles FROM messages").all()).toEqual([
+        { settles: 0 },
+      ]);
       expect(
         database.prepare("SELECT rowid FROM thread_titles WHERE thread_titles MATCH 'ship*'").all(),
       ).toEqual([{ rowid: 1 }]);

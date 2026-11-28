@@ -544,6 +544,24 @@ describe("the thread tools", () => {
     expect(revised.thread).toMatchObject({ open_asks: { asks: [{ number: 3, seq: 2 }] } });
   });
 
+  it("settle a thread with text saying why, and read who settled it", async () => {
+    const bridge = await approvedBridge();
+    await bridge.ok("thread_create", newThread("r1"));
+    await bridge.ok("message_send", {
+      thread: 1,
+      request_id: "r2",
+      seen_through: 1,
+      text: "The pull request merged.",
+      settles: true,
+    });
+    const read = await bridge.ok("thread_get", { thread: 1 });
+    expect(read.thread).toMatchObject({
+      settled_by: { kind: "session", agent: "builder", session: "main" },
+      last_seq: 2,
+    });
+    expect(read.messages).toMatchObject([{ seq: 1 }, { seq: 2, settles: true }]);
+  });
+
   it("send no answer, which only the audience gives", async () => {
     const bridge = await approvedBridge();
     await bridge.ok("thread_create", newThread("r1", { asks: [ask] }));

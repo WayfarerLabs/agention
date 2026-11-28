@@ -6,7 +6,7 @@
 // side by side and on a phone, where its Save form and a Replace
 // confirmation fit too; a view naming a tag renamed, and a group and a tag
 // removed, kept narrow; and Settings' section renaming and removing views.
-import type { BrowserContext, Locator, Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 import type {
   PublicKey,
   SavedView,
@@ -17,7 +17,7 @@ import type {
 import { registrationCode } from "@wayfarerlabs/agention-api/registration-code";
 import { Agent, callServer } from "./agent.ts";
 import { signIn, threads } from "./files.ts";
-import { type Agention, approve, expect, resize, test } from "./fixtures.ts";
+import { type Agention, approve, expect, resize, test, withinTheScreen } from "./fixtures.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -228,21 +228,6 @@ test("a view is current with its values chosen in another order, and changes onl
   await expect(savedViews()).toBeFocused();
 });
 
-// withinTheScreen checks that what is shown, the sheet unless another part
-// is named, stands whole across a screen of a width, with nothing to scroll
-// sideways.
-async function withinTheScreen(width: number, shown: Locator = sheet()): Promise<void> {
-  const box = await shown.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.x).toBeGreaterThanOrEqual(0);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(width);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
-}
-
 test("g v opens the sheet from a thread, beside the list and on a phone, where saving and replacing fit the screen", async () => {
   await resize(page, wide);
   await page.goto(`${threads}/1`);
@@ -250,7 +235,7 @@ test("g v opens the sheet from a thread, beside the list and on a phone, where s
   await page.keyboard.press("g");
   await page.keyboard.press("v");
   await expect(viewLink("Both agents")).toBeVisible();
-  await withinTheScreen(wide.width);
+  await withinTheScreen(sheet());
   // Beside the list, the thread stays open.
   expect(here()).toBe(`${threads}/1`);
   await page.keyboard.press("Escape");
@@ -262,7 +247,7 @@ test("g v opens the sheet from a thread, beside the list and on a phone, where s
   await page.keyboard.press("g");
   await page.keyboard.press("v");
   await expect(viewLink("Both agents")).toBeVisible();
-  await withinTheScreen(phone.width);
+  await withinTheScreen(sheet());
   // On a phone the list comes first, the one the thread returns to.
   expect(here()).toBe("/");
   // Saving and replacing fit the phone's screen too.
@@ -271,13 +256,13 @@ test("g v opens the sheet from a thread, beside the list and on a phone, where s
   await expect(name).toBeFocused();
   for (const shown of [name, sheet().getByRole("button", { name: "Save view" })]) {
     await expect(shown).toBeInViewport({ ratio: 1 });
-    await withinTheScreen(phone.width, shown);
+    await withinTheScreen(shown);
   }
   await sheet().getByRole("button", { name: "Cancel" }).click();
   await viewRow("Both agents").getByRole("button", { name: "Replace with this list" }).click();
   const confirm = viewRow("Both agents").getByRole("button", { name: "Replace", exact: true });
   await expect(confirm).toBeInViewport({ ratio: 1 });
-  await withinTheScreen(phone.width, viewRow("Both agents"));
+  await withinTheScreen(viewRow("Both agents"));
   await viewRow("Both agents").getByRole("button", { name: "Cancel" }).click();
   await page.keyboard.press("Escape");
   await expect(sheet()).toHaveCount(0);

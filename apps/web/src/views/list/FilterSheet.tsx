@@ -12,6 +12,7 @@ import {
   parsePullRequest,
   priority,
   type SessionGroupsFilter,
+  settledFilter,
   shortForm,
   shortFormKey,
   statusKept,
@@ -538,6 +539,18 @@ export function FilterSheet({
             choose={(value) => chooseAsk({ effort: effortFilter.safeParse(value).data })}
           />
         </div>
+        {/* Settled threads show among the rest unless only they show, or
+            none of them. */}
+        <Segmented
+          legend="Settled"
+          value={view.settled ?? ""}
+          options={[
+            { value: "", label: plain("Show"), count: counts?.settled.any },
+            { value: "only", label: plain("Only"), count: counts?.settled.only },
+            { value: "hide", label: plain("Hide"), count: counts?.settled.hide },
+          ]}
+          choose={(value) => choose({ settled: settledFilter.safeParse(value).data })}
+        />
         <Segmented
           legend="Read"
           value={view.unread ? "unread" : ""}

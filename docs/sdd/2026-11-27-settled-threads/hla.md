@@ -10,7 +10,7 @@
 | Decision            | Choice                                                                                       | Why                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | What settles        | `settles: true` on a message, whose text is the reason                                       | FRD S1; the operator's "flag on a message"                              |
-| Where it is offered | Sending a message, never starting a thread                                                   | FRD S4, by the schemas rather than a check                              |
+| Where it is offered | Sending a message, never starting a thread                                                   | FRD S4, by the schemas, and the database's check                        |
 | Who may             | Either role; no role check                                                                   | FRD S3; review check A5 names it                                        |
 | What Settled is     | The thread's latest message settles it                                                       | FRD S2, ruling 2; the latest message is always live, so one join        |
 | Stored state        | One column on `messages`; nothing on `threads`                                               | Derived like status and topic; ADR 0001's append-only log               |
@@ -74,11 +74,14 @@ replacing is already counted by the view every other reader uses.
 A migration adds one column:
 
 ```sql
-ALTER TABLE messages ADD COLUMN settles INTEGER NOT NULL DEFAULT 0 CHECK (settles IN (0, 1));
+ALTER TABLE messages ADD COLUMN settles INTEGER NOT NULL DEFAULT 0
+  CHECK (settles IN (0, 1) AND (settles = 0 OR (seq > 1 AND text IS NOT NULL)));
 ```
 
-`messages` is append-only (`apps/server/src/database/migrations.ts:207-214`), and existing rows take
-the default, so no message written before this release settles. `appendMessage`
+Beside the schemas, the database also holds S1's text and S4's first message: a settling row has
+text and is never a thread's first. `messages` is append-only
+(`apps/server/src/database/migrations.ts:207-214`), and existing rows take the default, so no
+message written before this release settles. `appendMessage`
 (`apps/server/src/store/threads.ts:212-233`) writes it, `Parts` (`:152-162`) carries it, and the
 request digest (`:651-655`) covers it with the other parts, so a retry that differs only in
 `settles` is a `request_id_conflict`. The migration's number is its position when it lands.
@@ -103,12 +106,12 @@ the column above.
 ### The filter and counts
 
 `listFilters` (`packages/api/src/thread-lists.ts:239-256`) gains `settled`, an optional enum of
-`only` and `hide`, right after `status`, since the list keeps the order the sheet offers its filters
-in (`:232-238`), and the address follows it. Absent, the list shows Settled threads among the rest
-(ruling 5). It is shaped as `agent_read` is (`:95-101`), and `include_archived` gives the words: the
-sheet offers **Show**, **Only**, and **Hide**. `listParts`
-(`apps/server/src/store/thread-lists.ts:104-146`) gains its `keeps` over `th.settled`,
-`parametersOf` (`:231-251`) its parameter, and `countThreads` (`:736-897`) counts
+`only` and `hide`, after `effort`, where the sheet offers it, after Status's ask filters, since the
+list keeps the order the sheet offers its filters in (`:232-238`), and the address follows it.
+Absent, the list shows Settled threads among the rest (ruling 5). It is shaped as `agent_read` is
+(`:95-101`), and `include_archived` gives the words: the sheet offers **Show**, **Only**, and
+**Hide**. `listParts` (`apps/server/src/store/thread-lists.ts:104-146`) gains its `keeps` over
+`th.settled`, `parametersOf` (`:231-251`) its parameter, and `countThreads` (`:736-897`) counts
 `{ any, only, hide }`, as it counts `agent_read` (`:864-867`).
 
 What follows from the shared shape, with nothing per filter:
@@ -162,7 +165,9 @@ The compatibility suite (`apps/bridge/src/released-bridges.compat.ts`) gains a
   message.
 - **Editing.** Editing a settling message, or changing the answers it gives, loads the toggle from
   the message as it loads the text, so the replacement settles unless the operator unchecks it.
-  Without that, `keptParts` (`writer.ts:70-82`) would drop it and a typo fix would end Settled.
+  Without that, `keptParts` (`writer.ts:70-82`) would drop it and a typo fix would end Settled. It
+  loads from the message only while that message is the thread's latest, so an edit of an older
+  settling message does not settle again over a later reply.
 - **The thread page.** A settling message's events line (`Messages.tsx:758-787`) reads **Settled the
   thread**, as the topic's line does. The head (`ThreadView.tsx:888-930`) shows **Settled** with who
   and when while the thread is Settled.
@@ -170,8 +175,9 @@ The compatibility suite (`apps/bridge/src/released-bridges.compat.ts`) gains a
   **Settled by you** or **Settled by billing-7**, since a phone shows no title; the row keeps its
   place (S7). Where on the row, among `.marks` (`ThreadRow.tsx:223-228`) with its words shown
   (`apps/web/src/icons.tsx:118-139`) or beside the session in `.where`, is the build's to choose
-  against the narrowest phone. The filter sheet's **Settled** segment sits after **Status**, and its
-  chip reads **Settled only** or **Settled hidden** (`FilterSheet.tsx`, `Chips.tsx`).
+  against the narrowest phone. The filter sheet's **Settled** segment sits after Status's ask
+  filters (Priority, Impact, Due, Effort), and its chip reads **Settled only** or **Settled hidden**
+  (`FilterSheet.tsx`, `Chips.tsx`).
 - **Clearing** is what exists: filter to Settled, select all, then **Read** and **Archive**, or act
   on every matching thread.
 - **The word (S14).** `settledWords` (`apps/web/src/format.tsx:200-209`), which says a thread's asks
@@ -212,9 +218,10 @@ rate budget. `SECURITY.md`'s **Roles** invariant gains that either party may set
 
 - Store: S2's rule, a later message from each role, a replacement with and without `settles`, a
   retraction, replacing an earlier message after settling, and settling again; S1's and S5's
-  refusals, each role's wording, and an ask answered, declined, or withdrawn in the settling message
-  itself counting as resolved; the first message unable to carry it, by the schemas; the digest
-  covering it; S10's `settled_by` on the summary, present only while Settled.
+  refusals, each role refused alike, with nothing written, and an ask answered, declined, or
+  withdrawn in the settling message itself counting as resolved; the first message unable to carry
+  it, by the schemas; the digest covering it; S10's `settled_by` on the summary, present only while
+  Settled.
 - Lists: the filter's three states and its counts, on the store and through the operator API's HTTP
   mount, and **act on every matching thread**; a saved view without it reading as before.
 - HTTP: an older agent API version's answers without `settles` or `settled_by`; the OpenAPI parity

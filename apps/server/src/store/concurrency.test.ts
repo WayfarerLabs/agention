@@ -51,7 +51,7 @@ describe("racing writes", () => {
 
   it.each([
     ["revised", { asks: [{ question: "Which, then?" }], replaces: 1 }, { replaces: 1 }],
-    ["withdrew", { withdrawals: [{ ask: 1, reason: "Settled." }] }, { withdrawals: [{ ask: 1 }] }],
+    ["withdrew", { withdrawals: [{ ask: 1, reason: "Moot." }] }, { withdrawals: [{ ask: 1 }] }],
   ])(
     "fail as stale, not as a misfit, when the landed message %s the ask answered",
     (_, landed, missed) => {

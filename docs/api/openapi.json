@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agention API",
-    "version": "operator v1, agent v7",
-    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 7."
+    "version": "operator v1, agent v8",
+    "description": "The operator API, for a client acting as the operator, and the agent API, for the Agention bridge. Every body is JSON but a file's bytes, which an upload sends and a file read answers, and every refusal is the shared error shape. GET /api/operator lists the operator API versions the server serves; the agent API serves versions 1 to 8."
   },
   "externalDocs": {
     "description": "How to call the operator API: keys, reading, waiting and files",
@@ -143,6 +143,19 @@
                 "quick",
                 "under_15m",
                 "under_1h"
+              ]
+            }
+          },
+          {
+            "name": "settled",
+            "in": "query",
+            "required": false,
+            "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "only",
+                "hide"
               ]
             }
           },
@@ -453,7 +466,7 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 300,
-                                "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                                "description": "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere."
                               },
                               "seq": {
                                 "type": "integer",
@@ -492,6 +505,10 @@
                               "branches"
                             ],
                             "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                          },
+                          "settled_by": {
+                            "$ref": "#/components/schemas/Author",
+                            "description": "Who settled the thread, present only while it is Settled: the author of its latest message, which settles it, so its time and sequence are updated_at and last_seq."
                           },
                           "credential_active": {
                             "type": "boolean"
@@ -763,6 +780,19 @@
             }
           },
           {
+            "name": "settled",
+            "in": "query",
+            "required": false,
+            "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "only",
+                "hide"
+              ]
+            }
+          },
+          {
             "name": "unread",
             "in": "query",
             "required": false,
@@ -969,6 +999,31 @@
                         "answered",
                         "withdrawn",
                         "none"
+                      ]
+                    },
+                    "settled": {
+                      "type": "object",
+                      "properties": {
+                        "any": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "only": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "hide": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "any",
+                        "only",
+                        "hide"
                       ]
                     },
                     "priority": {
@@ -1430,6 +1485,7 @@
                   },
                   "required": [
                     "status",
+                    "settled",
                     "priority",
                     "impact",
                     "overdue",
@@ -1569,6 +1625,19 @@
                 "quick",
                 "under_15m",
                 "under_1h"
+              ]
+            }
+          },
+          {
+            "name": "settled",
+            "in": "query",
+            "required": false,
+            "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "only",
+                "hide"
               ]
             }
           },
@@ -1856,7 +1925,7 @@
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 300,
-                              "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                              "description": "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere."
                             },
                             "seq": {
                               "type": "integer",
@@ -1895,6 +1964,10 @@
                             "branches"
                           ],
                           "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
+                        "settled_by": {
+                          "$ref": "#/components/schemas/Author",
+                          "description": "Who settled the thread, present only while it is Settled: the author of its latest message, which settles it, so its time and sequence are updated_at and last_seq."
                         },
                         "credential_active": {
                           "type": "boolean"
@@ -1998,7 +2071,7 @@
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 300,
-                              "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                              "description": "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere."
                             },
                             "seq": {
                               "type": "integer",
@@ -2037,6 +2110,10 @@
                             "branches"
                           ],
                           "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+                        },
+                        "settled_by": {
+                          "$ref": "#/components/schemas/Author",
+                          "description": "Who settled the thread, present only while it is Settled: the author of its latest message, which settles it, so its time and sequence are updated_at and last_seq."
                         },
                         "credential_active": {
                           "type": "boolean"
@@ -2493,6 +2570,11 @@
                       "$ref": "#/components/schemas/Withdrawal"
                     },
                     "description": "Up to ten of your open asks that you no longer need answered, each with why, those of the message a replacement replaces included. A withdrawal is never undone."
+                  },
+                  "settles": {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "Settle the thread: its matter is over, and this message's text says why. The thread is Settled until a later message, any participant's, ends it. Refused without text, and while any ask of the thread would stay open after this message: resolve them first, in this message or before."
                   },
                   "replaces": {
                     "type": "integer",
@@ -3930,6 +4012,14 @@
                           "under_1h"
                         ],
                         "description": "Only threads holding an open ask that states this effort or less."
+                      },
+                      "settled": {
+                        "type": "string",
+                        "enum": [
+                          "only",
+                          "hide"
+                        ],
+                        "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest."
                       },
                       "unread": {
                         "default": false,
@@ -7015,6 +7105,11 @@
                     },
                     "description": "Up to ten of your open asks that you no longer need answered, each with why, those of the message a replacement replaces included. A withdrawal is never undone."
                   },
+                  "settles": {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "Settle the thread: its matter is over, and this message's text says why. The thread is Settled until a later message, any participant's, ends it. Refused without text, and while any ask of the thread would stay open after this message: resolve them first, in this message or before."
+                  },
                   "replaces": {
                     "type": "integer",
                     "minimum": 0,
@@ -7894,7 +7989,7 @@
         "description": "The agent API version the server speaks.",
         "schema": {
           "type": "string",
-          "const": "7"
+          "const": "8"
         }
       }
     },
@@ -8492,6 +8587,11 @@
             "items": {
               "$ref": "#/components/schemas/Withdrawal"
             }
+          },
+          "settles": {
+            "type": "boolean",
+            "const": true,
+            "description": "Present when this message settles its thread."
           }
         },
         "required": [
@@ -8781,6 +8881,14 @@
                   "under_1h"
                 ],
                 "description": "Only threads holding an open ask that states this effort or less."
+              },
+              "settled": {
+                "type": "string",
+                "enum": [
+                  "only",
+                  "hide"
+                ],
+                "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest."
               },
               "unread": {
                 "default": false,
@@ -9249,7 +9357,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 300,
-                "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+                "description": "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere."
               },
               "seq": {
                 "type": "integer",
@@ -9288,6 +9396,10 @@
               "branches"
             ],
             "description": "How many distinct pull requests and branches the thread's live messages name; when they name exactly one in all, pull_request or branch is that one, as its latest mention wrote it with the latest URL given."
+          },
+          "settled_by": {
+            "$ref": "#/components/schemas/Author",
+            "description": "Who settled the thread, present only while it is Settled: the author of its latest message, which settles it, so its time and sequence are updated_at and last_seq."
           },
           "credential_active": {
             "type": "boolean"
@@ -9360,6 +9472,14 @@
               "under_1h"
             ],
             "description": "Only threads holding an open ask that states this effort or less."
+          },
+          "settled": {
+            "type": "string",
+            "enum": [
+              "only",
+              "hide"
+            ],
+            "description": "Settled threads, those whose latest message settles them: only keeps them alone, and hide leaves them out; absent shows them among the rest."
           },
           "unread": {
             "default": false,
@@ -9502,7 +9622,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300,
-            "description": "Plain text: why the ask no longer needs an answer, such as what settled it."
+            "description": "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere."
           }
         },
         "required": [

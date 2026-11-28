@@ -4,6 +4,7 @@ import {
   type Answer,
   type Attachment,
   maxAnswers,
+  maxListedAsks,
   pageLimit,
   parseTimestamp,
   type Reference,
@@ -158,6 +159,7 @@ interface Parts extends MessageLinks {
   answers?: Answer[] | undefined;
   withdrawals?: Withdrawal[] | undefined;
   topic?: string | undefined;
+  settles?: true | undefined;
   replaces?: number | undefined;
 }
 
@@ -206,11 +208,11 @@ function afterWrite(store: Store, identity: Identity, sessionId: number, message
 }
 
 // appendMessage writes a message at the thread's next sequence and the
-// session's next position, with its asks, numbered on from the thread's
-// highest, its answers, its withdrawals, its pull requests and branches,
-// and its attachments, which marks each file it names attached, and moves
-// the writer's read
-// cursor to it: a writer has read through its own message. A writer for whom
+// session's next position, whether it settles the thread, with its asks,
+// numbered on from the thread's highest, its answers, its withdrawals, its
+// pull requests and branches, and its attachments, which marks each file it
+// names attached, and moves the writer's read cursor to it: a writer has read
+// through its own message. A writer for whom
 // the thread is archived keeps it archived. Its caller's transaction holds it
 // all, so a message and its rows land together or not at all.
 function appendMessage(
@@ -233,10 +235,11 @@ function appendMessage(
     .get(thread.session_id) as { last_pos: number };
   db.prepare(
     `INSERT INTO messages (thread_id, seq, session_id, session_pos, actor_id, registration_id,
-       created_at, request_id, digest, text, detail, message_references, replaces_seq, topic)
+       created_at, request_id, digest, text, detail, message_references, replaces_seq, topic,
+       settles)
      VALUES (:thread_id, :seq, :session_id, :session_pos, :actor_id, :registration_id,
        :created_at, :request_id, :digest, :text, :detail, :message_references, :replaces_seq,
-       :topic)`,
+       :topic, :settles)`,
   ).run({
     thread_id: thread.id,
     seq,
@@ -252,6 +255,7 @@ function appendMessage(
     message_references: parts.references === undefined ? null : JSON.stringify(parts.references),
     replaces_seq: parts.replaces ?? null,
     topic: parts.topic ?? null,
+    settles: Number(parts.settles === true),
   });
   if (parts.asks !== undefined) {
     const { highest } = db
@@ -314,11 +318,12 @@ function appendMessage(
 
 // messageEntry describes a message a write appended, for its audit event:
 // the numbers of the asks it put, answered, declined and withdrew, the files
-// it carries, what it replaces, and the status the write logged.
+// it carries, what it replaces, whether it settles the thread, and the status
+// the write logged.
 export function messageEntry(
   thread: ThreadRef,
   seq: number,
-  parts: Pick<Parts, "answers" | "withdrawals" | "replaces">,
+  parts: Pick<Parts, "answers" | "withdrawals" | "replaces" | "settles">,
   asked: number[],
   attachments: ResolvedAttachment[],
   status: LoggedStatus | null,
@@ -333,6 +338,7 @@ export function messageEntry(
     withdrawals: (parts.withdrawals ?? []).map((withdrawal) => withdrawal.ask),
     files: attachments.map((attachment) => attachment.fileId),
     replaces: parts.replaces ?? null,
+    settles: parts.settles === true,
     status,
   };
 }
@@ -502,6 +508,33 @@ function checkParts(db: Database, thread: StoredThread, actor: number, parts: Pa
     );
   }
   checkReferences(db, thread.session_id, parts.references);
+}
+
+// checkNothingWaiting refuses a settling message that leaves an ask of the
+// thread open, since a Settled thread waits on no one. It runs once the
+// message is written, so what the message itself answers, declines,
+// withdraws, or asks again by replacing is counted by the view every other
+// reader uses, and the refusal rolls the message back with the transaction.
+// It names the asks, the first maxListedAsks of them, since a thread may hold
+// many more, and says what the writer can do: the requester withdraws them,
+// and the audience answers or declines them.
+function checkNothingWaiting(db: Database, threadId: number, requester: boolean): void {
+  const open = (
+    db
+      .prepare("SELECT number FROM open_asks WHERE thread_id = ? ORDER BY number LIMIT ?")
+      .all(threadId, maxListedAsks + 1) as { number: number }[]
+  ).map((row) => row.number);
+  if (open.length === 0) {
+    return;
+  }
+  const named = open.slice(0, maxListedAsks);
+  const asks = open.length > maxListedAsks ? `${numbered(named)}, among others,` : numbered(named);
+  const them = open.length === 1 ? "it" : "them";
+  throw invalidInput(
+    "settles",
+    `${asks} ${open.length === 1 ? "is" : "are"} open; ` +
+      `${requester ? `withdraw ${them}` : `answer or decline ${them}`}, in this message or before`,
+  );
 }
 
 // checkAnswer fits an answer to its ask: picks that are distinct and among
@@ -730,6 +763,9 @@ export function sendMessage(
       attachments,
       now,
     });
+    if (parts.settles === true) {
+      checkNothingWaiting(db, thread.id, requester);
+    }
     const status = statusOnWrite(db, identity, sessionId, report, now);
     const ref = threadRef(thread, target);
     recordAudit(store, now, { kind: "identity", identity }, "sendMessage", {

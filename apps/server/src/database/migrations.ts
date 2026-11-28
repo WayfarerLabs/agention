@@ -889,4 +889,14 @@ export const migrations: readonly string[] = [
     SELECT RAISE(ABORT, 'a server''s push key never changes');
   END;
   `,
+  `
+  -- Whether a message settles its thread: says its matter is over, with why in
+  -- its text. A thread is Settled while its latest message settles it, which
+  -- the store derives, so nothing on threads stores it. A thread's first
+  -- message never settles, and a settling message has text; that it leaves no
+  -- ask open the store checks, since this row cannot see the asks. Every
+  -- earlier message settles nothing.
+  ALTER TABLE messages ADD COLUMN settles INTEGER NOT NULL DEFAULT 0
+    CHECK (settles IN (0, 1) AND (settles = 0 OR (seq > 1 AND text IS NOT NULL)));
+  `,
 ];

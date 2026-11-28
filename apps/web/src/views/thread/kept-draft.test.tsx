@@ -56,6 +56,8 @@ const thread = { agent: "builder", session: "main", number: 1 };
 const composer = () => screen.getByRole("region", { name: "Reply" });
 const sendButton = () =>
   within(composer()).getByRole<HTMLButtonElement>("button", { name: "Send" });
+const settleBox = () =>
+  within(composer()).getByRole<HTMLInputElement>("checkbox", { name: "Settle the thread" });
 const discardButton = () =>
   within(composer()).queryByRole<HTMLButtonElement>("button", { name: "Discard draft" });
 // discard discards the draft, confirming it.
@@ -128,9 +130,17 @@ describe("a draft kept in the browser", () => {
     expect(discardButton()).toBeNull();
     fireEvent.change(textBox(), { target: { value: "Never mind" } });
     fireEvent.change(openDetails(), { target: { value: "At length." } });
+    // Settling is not kept with the draft, which says so once it opens again.
+    fireEvent.click(settleBox());
+    expect(readDraft(thread)?.leftBehind).toBe(true);
     discard();
     expect(textBox().value).toBe("");
+    expect(settleBox().checked).toBe(false);
     expect(discardButton()).toBeNull();
+    // Settle the thread alone is a draft to discard.
+    fireEvent.click(settleBox());
+    discard();
+    expect(settleBox().checked).toBe(false);
     await reopen(state);
     expect(textBox().value).toBe("");
     expect(readDraft(thread)).toBeUndefined();

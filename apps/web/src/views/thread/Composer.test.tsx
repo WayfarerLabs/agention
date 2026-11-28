@@ -639,9 +639,9 @@ describe("answering on the card", () => {
     expect(choices(2).some((input) => input.checked)).toBe(false);
     expect(choices(2).length).toBeGreaterThan(0);
     expect(choice(/^Postgres/, 1).checked).toBe(true);
-    fireEvent.change(textBox(), { target: { value: "Both settled." } });
+    fireEvent.change(textBox(), { target: { value: "Both decided." } });
     expect(await send()).toEqual({
-      text: "Both settled.",
+      text: "Both decided.",
       answers: [
         { ask: 1, picks: [1] },
         { ask: 3, text: "Close by." },
@@ -1593,7 +1593,7 @@ describe("a stale write", () => {
   it.each([
     ["answered", [operatorMessage(2, { answers: [answerTo({ declined: true })] })]],
     ["revised", [message(2, { replaces: 1, asks: [ask({ number: 2 })] })]],
-    ["withdrawn", [message(2, { withdrawals: [{ ask: 1, reason: "Settled elsewhere." }] })]],
+    ["withdrawn", [message(2, { withdrawals: [{ ask: 1, reason: "Answered elsewhere." }] })]],
   ])(
     "drops an answer to an ask %s meanwhile, clearing its card, keeping the text, and sends nothing",
     async (_, missed) => {

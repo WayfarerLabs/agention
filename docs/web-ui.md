@@ -124,6 +124,9 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
     they keep the threads with one open ask that meets them all, and any of them keeps only open
     threads, so **Status** shows **Open** while one is on: choosing one under another status chooses
     **Open**, and choosing any other status turns them all off.
+  - **Settled**: **Show**, the default, shows Settled threads among the rest; **Only** keeps them
+    alone, and **Hide** leaves them out. A thread is Settled while its latest message settles it, as
+    [A thread](#a-thread) describes.
   - **Read**: **Unread** keeps the threads with messages you have not read, and **Read by agent**:
     **Unread** those with a message of yours the agent has not read yet, and **Stranded** those
     among them whose agent is not there to read it, as
@@ -156,18 +159,18 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
   many threads the list holds; so does Escape.
 
 - Each filter that is on shows beneath the head as a compact chip, such as **Unread**, **Status:
-  Withdrawn**, or **Priority: Urgent, High**; an agent, session or topic shows behind its badge,
-  such as **builder**, a topic as `session/topic`, or **2 agents** when you chose several. A group
-  or a tag shows by its name now, such as **Group: Billing** or **Tag: infra**, or as **2 groups**.
-  A group you have since removed keeps nothing, and its chip says **Removed group**; so does a tag
-  you have removed, whose chip begins **Removed tag**. A single group's or tag's chip shows its
-  color. A pull request or a branch shows beside an icon of two lines merging into one, by its short
-  form, or as **2 pull requests** or **2 branches**. A long label is cut short, at its front for an
-  agent, session, topic, pull request, or branch, so its end stays; holding the pointer over a chip
-  says it whole. Choosing a chip removes its filter. A chip naming one session ends in an arrow of
-  its own, which opens the session's page in the sessions view; the rest of the chip still removes
-  the filter. The grouping, the order and its direction are no filters, so they stay when filters
-  go.
+  Withdrawn**, **Priority: Urgent, High**, or **Settled only** and **Settled hidden**; an agent,
+  session or topic shows behind its badge, such as **builder**, a topic as `session/topic`, or **2
+  agents** when you chose several. A group or a tag shows by its name now, such as **Group:
+  Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed keeps nothing, and
+  its chip says **Removed group**; so does a tag you have removed, whose chip begins **Removed
+  tag**. A single group's or tag's chip shows its color. A pull request or a branch shows beside an
+  icon of two lines merging into one, by its short form, or as **2 pull requests** or **2
+  branches**. A long label is cut short, at its front for an agent, session, topic, pull request, or
+  branch, so its end stays; holding the pointer over a chip says it whole. Choosing a chip removes
+  its filter. A chip naming one session ends in an arrow of its own, which opens the session's page
+  in the sessions view; the rest of the chip still removes the filter. The grouping, the order and
+  its direction are no filters, so they stay when filters go.
 - The page's address holds the filters, the order, its direction and the grouping, so a list you
   bookmark or share opens as you left it.
 - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds
@@ -180,7 +183,9 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
   changed; and, when an ask is open to you, the question of the one the list leads with, the first
   in its order among those the filters keep, with its priority, blocked and assuming marks, how long
   answering takes when the agent said, and how many more are open; otherwise, muted, **Answered**,
-  or **Withdrawn:** and the agent's latest reason on one line. When any of the asks open to you has
+  or **Withdrawn:** and the agent's latest reason on one line. A Settled thread says so first on
+  that line, in words, with who settled it: **Settled by you**, or by its session's name, such as
+  **Settled by main**; it keeps its place in the list's order. When any of the asks open to you has
   an answer-by, the row also shows the earliest answer-by among them, whichever ask carries it:
   **Due** and the time when that falls today, or the date and time on another day, with the year
   only when it is not this year's; and once the server finds it passed, as the **Overdue** filter
@@ -249,13 +254,15 @@ number, as a row's does, and shows the archive box beside it while the thread is
 Under it, its agent, session and topic say where the thread is, and each opens the list narrowed to
 it alone, with no other filter on, showing everything there in the order and grouping you left the
 list in. A small arrow just after the session opens the session's own page in the sessions view, and
-**Back** returns to the thread. Beneath, muted, a thread whose asks were answered or withdrawn says
-so, as its row does, and a stranded thread says why its session has not read your latest messages:
-it stopped, and how, or its agent was last seen when, or never; a session with no active credential
-says so in a notice under the head, its name opening the session's page. **Threads** stays marked in
-the navigation. The head holds **Jump to unread** while anything is unread or an ask is open to you.
-The messages open on the newest ones, or on the first one you had not read after those you archived
-when that comes before them, and show earlier and later ones when you ask.
+**Back** returns to the thread. Beneath, a Settled thread says **Settled by** whom, you or its
+session, and when, as [Settling a thread](#settling-a-thread) describes; then, muted, a thread whose
+asks were answered or withdrawn says so, as its row does, and a stranded thread says why its session
+has not read your latest messages: it stopped, and how, or its agent was last seen when, or never; a
+session with no active credential says so in a notice under the head, its name opening the session's
+page. **Threads** stays marked in the navigation. The head holds **Jump to unread** while anything
+is unread or an ask is open to you. The messages open on the newest ones, or on the first one you
+had not read after those you archived when that comes before them, and show earlier and later ones
+when you ask.
 
 - A bar at the foot of the page, **Thread actions** to a screen reader, holds the ways off it, each
   an icon over a short word: **Threads**, back to the list as you left it, with its filters, order,
@@ -358,7 +365,7 @@ when that comes before them, and show earlier and later ones when you ask.
   question, its priority, impact, how long answering takes when the agent said, and answer-by, what
   the agent will do without an answer, and whether it is open, answered, revised or withdrawn. An
   agent that revises an ask asks it again under a new number. An agent withdraws an ask it no longer
-  needs answered, such as one settled elsewhere, with a reason: its card reads **Withdrawn in #7:**
+  needs answered, such as one answered elsewhere, with a reason: its card reads **Withdrawn in #7:**
   and the reason, and the message that withdrew it says **Withdrew ask 3:** and the reason for each
   ask it withdrew. An agent may withdraw an ask in the message that revises its others, and the card
   reads withdrawn all the same. A withdrawn ask takes no answer. An answered card checks the
@@ -390,10 +397,10 @@ when that comes before them, and show earlier and later ones when you ask.
   staged.
 - **Edit** in the options of your other messages changes their text and details, and drops their
   answers to asks the agent since revised or retracted. **Change answer** and **Edit** replace the
-  whole message, so they need empty boxes with nothing staged, and keep its references, pull
-  requests and branches as they are. A replaced message folds into one line naming its replacement,
-  and opens to show what it said; one replaced by a message carrying nothing reads **retracted in**
-  that message, which says **Retracted #** and the number.
+  whole message, so they need empty boxes with nothing staged and **Settle the thread** unchecked,
+  and keep its references, pull requests and branches as they are. A replaced message folds into one
+  line naming its replacement, and opens to show what it said; one replaced by a message carrying
+  nothing reads **retracted in** that message, which says **Retracted #** and the number.
 - At the foot is a box labelled **Additional information** while you write answers and **Message**
   otherwise, a **Details** line under it that opens a second box for the message's details, and one
   **Send** button. The message box holds a summary of up to 1,000 characters, and **Details** up to
@@ -407,22 +414,32 @@ when that comes before them, and show earlier and later ones when you ask.
   without words is not, and its field says so once you leave it. Once ten cards hold answers, the
   other asks' choices are unavailable until you send or remove one. While a change or an edit is
   staged, nothing else can be started until you send or remove it, and removing it empties both
-  boxes. An edit needs text. With **Enter sends** on, as [Keyboard shortcuts](#keyboard-shortcuts)
-  describes, `Enter` in either box sends and `Shift+Enter` starts a new line.
+  boxes, turning **Settle the thread** off. An edit needs text. With **Enter sends** on, as
+  [Keyboard shortcuts](#keyboard-shortcuts) describes, `Enter` in either box sends and `Shift+Enter`
+  starts a new line.
+- **Settle the thread**, a checkbox under the boxes, makes the message settle the thread, as
+  [Settling a thread](#settling-a-thread) describes. It needs text in the message box, saying why,
+  and **Send** waits until there is some. When an ask is still open, the server refuses the message,
+  naming the asks, and the checkbox says so, until you change it, with your draft kept: answer or
+  decline them on their cards, in this message or before, and send again. A change of answers or an
+  edit of a settling message that is still the thread's latest loads it checked, so the replacement
+  settles too unless you uncheck it; one of an older settling message, with a reply after it, loads
+  it unchecked.
 - This browser keeps your draft's text and details as you type, one draft for each thread, so
   leaving the thread or reloading the page loses nothing: the composer opens with them when you come
   back, and counts from where the draft started, so a message the agent wrote while you were away
   makes sending stale, as below. With the thread open in two tabs, the draft typed last is the one
-  kept. What you staged, the files you attached and a recording are not kept: the composer says so
-  when the draft it opens with had them, and sending it then posts its text as a new message. The
-  text a change or an edit loads is kept only once you change it. **Discard draft**, under the boxes
-  while they hold anything, asks once, then empties the composer and forgets the draft; a message
-  that is sent forgets it, and one that fails to send keeps it. Reloading the page while a message
-  is being sent brings its text back as the draft; if the message landed, sending the draft again
-  fails as stale, with your message among those missed, so nothing is sent twice unseen. The browser
-  forgets a draft 30 days after you last opened its thread or typed in it, keeps the latest 50, and
-  forgets them all when you sign out here or remove the passkey it signed in with. A browser that
-  refuses storage, as a private window may, keeps none, and the composer works as before.
+  kept. What you staged, the files you attached, **Settle the thread** and a recording are not kept:
+  the composer says so when the draft it opens with had them, and sending it then posts its text as
+  a new message. The text a change or an edit loads is kept only once you change it. **Discard
+  draft**, under the boxes while they hold anything, asks once, then empties the composer and
+  forgets the draft; a message that is sent forgets it, and one that fails to send keeps it.
+  Reloading the page while a message is being sent brings its text back as the draft; if the message
+  landed, sending the draft again fails as stale, with your message among those missed, so nothing
+  is sent twice unseen. The browser forgets a draft 30 days after you last opened its thread or
+  typed in it, keeps the latest 50, and forgets them all when you sign out here or remove the
+  passkey it signed in with. A browser that refuses storage, as a private window may, keeps none,
+  and the composer works as before.
 - Beside **Send**, **After sending** is two compact controls for what follows once a message is
   sent, their icons alone on a phone, and past a phone's width a word or two beside each, after the
   words **After sending**. Holding the pointer over one names it and says what it is set to.
@@ -485,6 +502,17 @@ way your text and details stay, and **Mark these read** leaves the rest for you 
 Once a message is sent, what you staged since that it made impossible to send goes the same way,
 without a word: an answer you changed meanwhile to an ask it answered, or a change or edit of the
 message it replaced.
+
+### Settling a thread
+
+Settling says, in a message, that a thread's matter is over, with why in its text. A thread is
+Settled while its latest message settles it, so any later message ends it: a reply from you or the
+agent, a replacement that does not settle again, or a retraction. Either of you may settle a thread,
+with any message but its first, once no ask is left open. A message that settles shows **Settled the
+thread** among what it does, the thread's head shows **Settled by** whom and when, and its row says
+so. Settling reads and archives nothing: an agent's settling message is unread for you like any
+other, so you can check it. To clear Settled threads, choose **Settled**: **Only** in the filters,
+then select them all and **Archive**, or choose **Hide** to leave them out, in a saved view too.
 
 ## The sessions view
 

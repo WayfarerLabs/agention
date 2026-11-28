@@ -5,6 +5,7 @@ import {
   agentApiHeader,
   maxLinks,
   maxUrlLength,
+  settledAgentApiVersion,
   summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -212,8 +213,8 @@ describe.each(versions)("the bridge released as %s", (version) => {
     expect(await numbers({})).toEqual([2]);
     expect(await numbers({ include_archived: true })).toEqual([1, 2]);
     await call("thread_read", { thread: 2, through: 2 });
-    const settled = await call("message_wait", { wait_seconds: 0 });
-    expect(await call("message_wait", { since: settled.since, wait_seconds: 1 })).toMatchObject({
+    const caughtUp = await call("message_wait", { wait_seconds: 0 });
+    expect(await call("message_wait", { since: caughtUp.since, wait_seconds: 1 })).toMatchObject({
       threads: [],
     });
 
@@ -237,7 +238,7 @@ describe.each(versions)("the bridge released as %s", (version) => {
       attachments: [{ upload: shot.upload }],
     });
     expect(
-      (await call("message_wait", { since: settled.since, wait_seconds: 5 })).threads,
+      (await call("message_wait", { since: caughtUp.since, wait_seconds: 5 })).threads,
     ).toMatchObject([{ number: 3, unread: 1 }]);
     const carried = { name: "screen.png", file: shot.upload, size: screenshot.length };
     expect(await call("thread_get", { thread: 3, after: 1 })).toMatchObject({
@@ -420,10 +421,11 @@ describe.each(versions)("the bridge released as %s", (version) => {
     }
 
     // A thread's summary, which counts the pull requests and branches its
-    // live messages name and gives the one while there is only one, as a
-    // thread read, a list, and a wait carry it: whole to a release stating a
-    // version that has it, and without it to one stating an older version,
-    // as each of its requests states.
+    // live messages name and gives the one while there is only one, and names
+    // who settled the thread while it is Settled, as a thread read, a list,
+    // and a wait carry it, with the settling message: each field whole to a
+    // release stating a version that has it, and left out for one stating an
+    // older version, as each of its requests states.
     const stated = new Set<string>();
     harness.beforeRequest = (request) => {
       if (new URL(request.url).pathname.startsWith("/api/agent/")) {
@@ -432,17 +434,23 @@ describe.each(versions)("the bridge released as %s", (version) => {
     };
     const before = await call("message_wait", { wait_seconds: 0 });
     const only = { repo: "acme/website", number: 7, url: url("pull/7") };
-    const seq = await harness.operatorWrites(3, { text: "This one.", pull_requests: [only] });
+    const seq = await harness.operatorWrites(3, {
+      text: "This one, and that is all.",
+      pull_requests: [only],
+      settles: true,
+    });
     const ofThree = (threads: unknown) =>
       (threads as Record<string, unknown>[]).filter((thread) => thread.number === 3);
+    const settling = await call("thread_get", { thread: 3, after: seq - 1 });
     const summaries = [
-      (await call("thread_get", { thread: 3, after: seq - 1 })).thread as Record<string, unknown>,
+      settling.thread as Record<string, unknown>,
       ...ofThree((await call("thread_list", {})).threads),
       ...ofThree((await call("message_wait", { since: before.since, wait_seconds: 5 })).threads),
     ];
     harness.beforeRequest = undefined;
     expect(stated.size).toBe(1);
     const hasLinks = Number([...stated][0]) >= summaryLinksAgentApiVersion;
+    const hasSettled = Number([...stated][0]) >= settledAgentApiVersion;
     expect(summaries).toHaveLength(3);
     for (const summary of summaries) {
       expect(summary).toMatchObject({ number: 3 });
@@ -451,6 +459,39 @@ describe.each(versions)("the bridge released as %s", (version) => {
       } else {
         expect(summary).not.toHaveProperty("links");
       }
+      if (hasSettled) {
+        expect(summary.settled_by).toEqual({ kind: "person", name: "operator" });
+      } else {
+        expect(summary).not.toHaveProperty("settled_by");
+      }
+    }
+    const [settlingMessage] = settling.messages as Record<string, unknown>[];
+    expect(settlingMessage).toMatchObject({ seq, text: "This one, and that is all." });
+    if (hasSettled) {
+      expect(settlingMessage).toHaveProperty("settles", true);
+    } else {
+      expect(settlingMessage).not.toHaveProperty("settles");
+    }
+
+    // Settling, in a release whose messages take it: the agent settles a
+    // thread of its own once it holds no open ask, and the operator's next
+    // message ends Settled.
+    if (takes("message_send", "settles")) {
+      const latest = (await call("thread_get", { thread: 2 })).thread as { last_seq: number };
+      expect(
+        await call("message_send", {
+          thread: 2,
+          request_id: "compat-15",
+          seen_through: latest.last_seq,
+          text: "The docs are written.",
+          settles: true,
+        }),
+      ).toEqual({ number: 2, seq: latest.last_seq + 1 });
+      expect((await call("thread_get", { thread: 2 })).thread).toMatchObject({
+        settled_by: { kind: "session", agent, session },
+      });
+      await harness.operatorWrites(2, { text: "Thanks." });
+      expect((await call("thread_get", { thread: 2 })).thread).not.toHaveProperty("settled_by");
     }
 
     if (has("session_update")) {

@@ -4,6 +4,10 @@
 
 Prior-art research for the Agention settled-threads design. Researched 2026-11-27.
 
+This research predates the operator's rulings: where the [FRD](frd.md) (its S2 and S6) and the
+[HLA](hla.md) decide otherwise, they supersede its design-decision labels and open questions, while
+its dated alternatives stand as researched.
+
 **Grading key** (used inline as (A), (B), (C), and in the sources table):
 
 - **A**: primary docs: vendor documentation, API reference, vendor source code, or the vendor's own

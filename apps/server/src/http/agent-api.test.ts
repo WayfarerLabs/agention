@@ -4,6 +4,7 @@ import {
   codeLinksAgentApiVersion,
   type ErrorBody,
   formatTimestamp,
+  settledAgentApiVersion,
   summaryLinksAgentApiVersion,
   type ThreadGetResult,
   type ThreadPage,
@@ -707,6 +708,60 @@ describe("the agent API version", () => {
         number: 1,
         links: { pull_requests: 1, branches: 0, pull_request: pull },
       });
+    }
+  });
+
+  it("leaves settling out of answers to a version before it", async () => {
+    await harness.agent(approved, "POST", "/s/builder/main/threads", newThread("r-1"));
+    await harness.web("POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      text: "Merged, so done.",
+      settles: true,
+    });
+    // What a bridge stating the version reads: the summaries of a thread read,
+    // a list and a wait, the settling message, and the one a stale write
+    // missed.
+    const answers = async (version: string | undefined) => {
+      const headers = version === undefined ? {} : { [agentApiHeader]: version };
+      const read = async (path: string) =>
+        (await harness.agent(approved, "GET", `/s/builder/main${path}`, undefined, { headers }))
+          .body as { thread?: object; threads?: object[]; messages?: object[] };
+      const thread = await read("/threads/1?after=1");
+      const stale = await harness.agent(
+        approved,
+        "POST",
+        "/s/builder/main/threads/1/messages",
+        { request_id: `r-${version ?? "none"}`, seen_through: 1, text: "Late." },
+        { headers },
+      );
+      return {
+        summaries: [
+          thread.thread,
+          ...((await read("/threads")).threads ?? []),
+          ...((await read("/wait")).threads ?? []),
+        ],
+        messages: [thread.messages?.[0], (stale.body as ErrorBody).error.missed?.[0]],
+      };
+    };
+    for (const version of [undefined, String(settledAgentApiVersion - 1)]) {
+      const { summaries, messages } = await answers(version);
+      expect([version, summaries.length, messages.length]).toEqual([version, 3, 2]);
+      for (const summary of summaries) {
+        expect(summary).toMatchObject({ number: 1 });
+        expect(summary).not.toHaveProperty("settled_by");
+      }
+      for (const message of messages) {
+        expect(message).toMatchObject({ seq: 2, text: "Merged, so done." });
+        expect(message).not.toHaveProperty("settles");
+      }
+    }
+    const { summaries, messages } = await answers(String(agentApi.version));
+    for (const summary of summaries) {
+      expect(summary).toMatchObject({ settled_by: { kind: "person", name: "operator" } });
+    }
+    for (const message of messages) {
+      expect(message).toMatchObject({ seq: 2, settles: true });
     }
   });
 

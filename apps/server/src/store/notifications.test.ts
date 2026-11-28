@@ -281,6 +281,18 @@ describe("the check", () => {
     expect(checked()).toEqual([1]);
   });
 
+  it("stays quiet on an agent's settling message under a view hiding Settled threads", () => {
+    removeSavedView(store(), operator(), startingView());
+    notifyView(store(), operator(), save("Unsettled", { settled: "hide" }));
+    const thread = threadTarget(builder, fixture.createThread(builder).number);
+    expect(checked()).toEqual([1]);
+    markRead(store(), operator(), thread, markInput.parse({ through: 1 }));
+    fixture.write(builder.identity, thread, { text: "Merged, so done.", settles: true });
+    expect(checked()).toEqual([]);
+    fixture.write(builder.identity, thread, { text: "Reopened." });
+    expect(checked()).toEqual([1]);
+  });
+
   it("skips a notifying view that has a refused filter on", () => {
     fixture.db
       .prepare("UPDATE saved_views SET view = ? WHERE id = ?")
@@ -335,7 +347,7 @@ describe("the mark", () => {
 
   it("clears on an archive through it, and stays clear when the thread is marked unread", () => {
     expect(checked()).toEqual([1]);
-    fixture.write(builder.identity, target(1), { withdrawals: [{ ask: 1, reason: "Settled." }] });
+    fixture.write(builder.identity, target(1), { withdrawals: [{ ask: 1, reason: "Moot." }] });
     expect(checked()).toEqual([]);
     archiveThread(store(), operator(), target(1), markInput.parse({ through: 2 }));
     expect(mark(1)).toBeNull();

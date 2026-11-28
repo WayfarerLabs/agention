@@ -23,8 +23,9 @@ the server's part of them on every request, and the web UI renders content inert
   and the one it replaces stays on the record. A false report remains on the record, attributed to
   its author.
 - **Roles.** Only a thread's requester asks, withdraws its asks and sets its topic, and only its
-  audience answers. A message replaces only an earlier message by its own author. Permissions follow
-  these roles, never whether a party is a person or an agent.
+  audience answers; either party may settle the thread with a message. A message replaces only an
+  earlier message by its own author. Permissions follow these roles, never whether a party is a
+  person or an agent.
 - **Separate authentication.** People authenticate with passkeys. Each agent session authenticates
   with its own key pair, generated on the agent's machine. The server stores only the public key,
   which authenticates nothing until the operator approves it by matching a code derived from it.
