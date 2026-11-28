@@ -40,11 +40,12 @@ function rankIn(column: string, levels: readonly string[]): string {
 
 // priorityRank ranks a priority, most pressing first, as priority.options
 // lists them. Every value ranks: the asks table's CHECK holds an ask's to
-// those levels, and a priority filter takes only some of them.
+// those levels.
 export const priorityRank = (column: string): string => rankIn(column, priority.options);
 
 // effortRank ranks an effort, quickest first, as effort.options lists them;
-// null when unstated. Every stated value ranks, as for priorityRank.
+// null when unstated. Every stated value ranks, as for priorityRank, and an
+// effort filter takes only some of them.
 export const effortRank = (column: string): string => rankIn(column, effort.options);
 
 // A sort key past every answer-by time, so asks without one sort last.

@@ -638,8 +638,9 @@ UI's address names a list by. Listing them needs `saved-views:read` and every ch
   the address, which leaves defaults out, follows the new one.
 - **Reading** parses the stored text with `threadsView.strict()`: persisted state, checked rather
   than trusted, so a view the schema refuses, or holding a part it does not have, fails loudly as a
-  server error, never a guess. A change to `threadsView` that would refuse a stored view ships with
-  a migration rewriting the stored views, so the strict read never meets one.
+  server error, never a guess. A change to `threadsView` that would refuse a stored view, or change
+  what one keeps, ships with a migration rewriting the stored views, so the strict read never meets
+  one and a view keeps the threads it was saved to keep.
 - **What a view names.** Groups are named by id, which a rename keeps and a removal never gives to
   another, so a view naming a removed group keeps no threads. Tags are named by name, so `renameTag`
   rewrites the `tag` list of every view naming the tag in its own transaction, keeping a name the
@@ -788,7 +789,7 @@ The operator's list also takes these:
 
 | Filter                      | Keeps the threads                                                                                                                                                  |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `priority`                  | With an open ask at that level or higher                                                                                                                           |
+| `priority`                  | With an open ask at one of the priorities given, each named once and matched exactly                                                                               |
 | `impact`                    | With an open ask blocking, or assuming                                                                                                                             |
 | `overdue`                   | With an open ask past its answer-by                                                                                                                                |
 | `effort`                    | With an open ask that states that effort or less, so an ask stating none meets no effort filter                                                                    |
@@ -911,10 +912,11 @@ are and last seen when the latest was.
 The operator's counts take the list's filters and say, for each value of each filter but search, how
 many threads it keeps with every other filter as it is.
 
-- **A filter taking one value.** Each value is counted by running the list's own total with that
-  value chosen, so one rule says what the list keeps: any status, and every status but `open`, with
-  the filters on asks off, as choosing it turns them off, and each value of a filter on asks with
-  `open` chosen, as choosing it chooses `open`.
+- **A filter taking one value, and priorities.** Each value is counted by running the list's own
+  total with that value chosen, a priority chosen alone whatever the priorities chosen, so one rule
+  says what the list keeps: any status, and every status but `open`, with the filters on asks off,
+  as choosing it turns them off, and each value of a filter on asks with `open` chosen, as choosing
+  it chooses `open`.
 - **Agents, sessions and topics.** Each one holding a thread has its own count, whatever that
   filter's own choices are, each kind counted in one statement grouped by it with that filter's
   condition off.

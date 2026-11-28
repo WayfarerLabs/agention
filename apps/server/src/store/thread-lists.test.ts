@@ -307,8 +307,14 @@ describe("the signals of open asks", () => {
       ["high overdue", "normal quick", "low, a quarter hour"],
     ],
     ["urgent", { priority: "urgent" }, ["urgent blocking"]],
-    ["high or more", { priority: "high" }, ["urgent blocking", "high overdue"]],
-    ["normal or more", { priority: "normal" }, ["urgent blocking", "high overdue", "normal quick"]],
+    ["high, and none higher,", { priority: "high" }, ["high overdue"]],
+    ["low", { priority: "low" }, ["low, a quarter hour", "low, longer"]],
+    ["urgent or high", { priority: ["urgent", "high"] }, ["urgent blocking", "high overdue"]],
+    [
+      "urgent or low",
+      { priority: ["low", "urgent"] },
+      ["urgent blocking", "low, a quarter hour", "low, longer"],
+    ],
     ["high and overdue", { priority: "high", overdue: "true" }, ["high overdue"]],
     ["blocking and quick", { impact: "blocking", effort: "quick" }, []],
   ])("keep the threads holding %s asks", (_, query, expected) => {
@@ -945,6 +951,7 @@ describe("counts and groups", () => {
     { effort: "under_15m", unread: "true" },
     { overdue: "true" },
     { priority: "normal", impact: "blocking" },
+    { priority: ["urgent", "low"], status: "open" },
     { agent_read: "unread" },
     { agent_read: "stranded" },
     { agent_read: "stranded", agent: "builder" },
@@ -995,11 +1002,13 @@ describe("counts and groups", () => {
         none: total({ status: "none", ...asksOff }),
       });
       const open = { status: "open" };
+      // A priority is counted chosen alone, whatever the priorities chosen.
       expect(counts.priority).toEqual({
         any: total({ priority: undefined }),
-        normal: total({ priority: "normal", ...open }),
-        high: total({ priority: "high", ...open }),
         urgent: total({ priority: "urgent", ...open }),
+        high: total({ priority: "high", ...open }),
+        normal: total({ priority: "normal", ...open }),
+        low: total({ priority: "low", ...open }),
       });
       expect(counts.impact).toEqual({
         any: total({ impact: undefined }),

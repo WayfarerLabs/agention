@@ -97,15 +97,17 @@
             "name": "priority",
             "in": "query",
             "required": false,
-            "description": "Only threads holding an open ask at this priority or higher.",
+            "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "normal",
-                "high",
-                "urgent"
-              ]
-            }
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Priority"
+              }
+            },
+            "style": "form",
+            "explode": true
           },
           {
             "name": "impact",
@@ -711,15 +713,17 @@
             "name": "priority",
             "in": "query",
             "required": false,
-            "description": "Only threads holding an open ask at this priority or higher.",
+            "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "normal",
-                "high",
-                "urgent"
-              ]
-            }
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Priority"
+              }
+            },
+            "style": "form",
+            "explode": true
           },
           {
             "name": "impact",
@@ -975,7 +979,7 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
-                        "normal": {
+                        "urgent": {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
@@ -985,7 +989,12 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
-                        "urgent": {
+                        "normal": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "low": {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
@@ -993,9 +1002,10 @@
                       },
                       "required": [
                         "any",
-                        "normal",
+                        "urgent",
                         "high",
-                        "urgent"
+                        "normal",
+                        "low"
                       ]
                     },
                     "impact": {
@@ -1513,15 +1523,17 @@
             "name": "priority",
             "in": "query",
             "required": false,
-            "description": "Only threads holding an open ask at this priority or higher.",
+            "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "normal",
-                "high",
-                "urgent"
-              ]
-            }
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Priority"
+              }
+            },
+            "style": "form",
+            "explode": true
           },
           {
             "name": "impact",
@@ -3889,13 +3901,13 @@
                         "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
                       },
                       "priority": {
-                        "type": "string",
-                        "enum": [
-                          "normal",
-                          "high",
-                          "urgent"
-                        ],
-                        "description": "Only threads holding an open ask at this priority or higher."
+                        "minItems": 1,
+                        "maxItems": 4,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/Priority"
+                        },
+                        "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep."
                       },
                       "impact": {
                         "type": "string",
@@ -8740,13 +8752,13 @@
                 "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
               },
               "priority": {
-                "type": "string",
-                "enum": [
-                  "normal",
-                  "high",
-                  "urgent"
-                ],
-                "description": "Only threads holding an open ask at this priority or higher."
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep."
               },
               "impact": {
                 "type": "string",
@@ -9319,13 +9331,13 @@
             "description": "Only threads of this status, which rolls up the asks on their live messages and those a live message withdraws: open while any is open; otherwise withdrawn when every one was withdrawn, and answered when there are any; none when there are none."
           },
           "priority": {
-            "type": "string",
-            "enum": [
-              "normal",
-              "high",
-              "urgent"
-            ],
-            "description": "Only threads holding an open ask at this priority or higher."
+            "minItems": 1,
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Priority"
+            },
+            "description": "Only threads holding an open ask at one of these priorities, each named once. Each priority matches exactly; name every priority to keep."
           },
           "impact": {
             "type": "string",

@@ -105,7 +105,13 @@ const group = (legend: string) => within(sheet()).getByRole("group", { name: leg
 // segment finds a value of a group by its name, whatever count it shows.
 const segment = (legend: string, name: string) =>
   within(group(legend)).getByRole<HTMLInputElement>("radio", {
-    name: new RegExp(`^${name.replace(/[+]/g, "\\+")}(, \\d+ threads?)?$`),
+    name: new RegExp(`^${name}(, \\d+ threads?)?$`),
+  });
+// box finds a value of a group of checkboxes by its name, whatever count it
+// shows.
+const box = (legend: string, name: string) =>
+  within(group(legend)).getByRole<HTMLInputElement>("checkbox", {
+    name: new RegExp(`^${name}(, \\d+ threads?)?$`),
   });
 const checked = (legend: string) =>
   within(group(legend))
@@ -673,7 +679,7 @@ describe("a row's due mark", () => {
 // a test can tell which is shown where.
 const counts: ThreadCounts = {
   status: { any: 30, open: 9, answered: 34, withdrawn: 35, none: 36 },
-  priority: { any: 29, normal: 8, high: 7, urgent: 6 },
+  priority: { any: 29, urgent: 6, high: 7, normal: 8, low: 10 },
   impact: { any: 28, blocking: 5, assuming: 4 },
   overdue: { any: 27, overdue: 3 },
   effort: { any: 26, quick: 2, under_15m: 11, under_1h: 12 },
@@ -757,11 +763,12 @@ describe("the filter sheet", () => {
       "Read by agent",
       "Archived",
     ]);
-    // Each is a row of radio buttons, the first, which turns its filter off,
-    // checked.
+    // Each is a row of radio buttons, or of checkboxes for Priority, which
+    // takes several, the first, which turns its filter off, checked.
     for (const each of groups) {
-      const radios = within(each).getAllByRole<HTMLInputElement>("radio");
-      expect(radios.map((radio) => radio.checked)).toEqual(radios.map((_, i) => i === 0));
+      const role = each === group("Priority") ? "checkbox" : "radio";
+      const inputs = within(each).getAllByRole<HTMLInputElement>(role);
+      expect(inputs.map((input) => input.checked)).toEqual(inputs.map((_, i) => i === 0));
     }
     // Agent and Session are buttons disclosing their choices.
     for (const name of [/^Agent/, /^Session/]) {
@@ -785,9 +792,6 @@ describe("the filter sheet", () => {
     ["Status", "Answered", "status=answered", ["status", "answered"]],
     ["Status", "Withdrawn", "status=withdrawn", ["status", "withdrawn"]],
     ["Status", "No asks", "status=none", ["status", "none"]],
-    ["Priority", "Normal priority or more", "priority=normal", ["priority", "normal"]],
-    ["Priority", "High priority or more", "priority=high", ["priority", "high"]],
-    ["Priority", "Urgent", "priority=urgent", ["priority", "urgent"]],
     ["Impact", "Blocking", "impact=blocking", ["impact", "blocking"]],
     ["Impact", "Assuming", "impact=assuming", ["impact", "assuming"]],
     ["Due", "Overdue", "overdue=true", ["overdue", "true"]],
@@ -815,26 +819,54 @@ describe("the filter sheet", () => {
     },
   );
 
+  it("takes any set of priorities, one alone included", async () => {
+    serve([]);
+    serveCounts();
+    renderAt("/");
+    await openSheet();
+    fireEvent.click(box("Priority", "High"));
+    await waitFor(() => expect(address()).toBe("?priority=high"));
+    await waitFor(() => expect(lastQuery()?.getAll("priority")).toEqual(["high"]));
+    expect(box("Priority", "Any").checked).toBe(false);
+    // Others join it.
+    fireEvent.click(box("Priority", "Low"));
+    fireEvent.click(box("Priority", "Urgent"));
+    await waitFor(() => expect(address()).toBe("?priority=high&priority=low&priority=urgent"));
+    await waitFor(() => expect(lastQuery()?.getAll("priority")).toEqual(["high", "low", "urgent"]));
+    // Every priority shows its count, chosen or not, and Any its own.
+    expect(box("Priority", "Urgent").closest("label")?.textContent).toContain("(6)");
+    expect(box("Priority", "Normal").closest("label")?.textContent).toContain("(8)");
+    expect(box("Priority", "Low").closest("label")?.textContent).toContain("(10)");
+    expect(box("Priority", "Any").closest("label")?.textContent).toContain("(29)");
+    // Unchecking one leaves the others, and Any unchecks every one.
+    fireEvent.click(box("Priority", "High"));
+    await waitFor(() => expect(address()).toBe("?priority=low&priority=urgent"));
+    fireEvent.click(box("Priority", "Any"));
+    await waitFor(() => expect(address()).toBe(""));
+    expect(box("Priority", "Any").checked).toBe(true);
+    expect(box("Priority", "Urgent").checked).toBe(false);
+  });
+
   it("shows Status as Open while a property of open asks is on, and another status turns them all off", async () => {
     serve([]);
     renderAt("/?priority=high&overdue=true&effort=quick&unread=true");
     await openSheet();
     expect(checked("Status")).toContain("Open");
-    expect(checked("Priority")).toContain("High+");
+    expect(box("Priority", "High").checked).toBe(true);
     fireEvent.click(segment("Status", "Answered"));
     await waitFor(() => expect(address()).toBe("?status=answered&unread=true"));
     expect(checked("Effort")).toContain("Any");
     // Open keeps a property chosen beside it, and another status turns it off.
     fireEvent.click(segment("Status", "Open"));
     await waitFor(() => expect(address()).toBe("?status=open&unread=true"));
-    fireEvent.click(segment("Priority", "High priority or more"));
+    fireEvent.click(box("Priority", "High"));
     await waitFor(() => expect(address()).toBe("?status=open&priority=high&unread=true"));
     fireEvent.click(segment("Status", "No asks"));
     await waitFor(() => expect(address()).toBe("?status=none&unread=true"));
     fireEvent.click(segment("Status", "Any"));
     await waitFor(() => expect(address()).toBe("?unread=true"));
     expect(checked("Status")).toContain("Any");
-    expect(checked("Priority")).toContain("Any");
+    expect(box("Priority", "Any").checked).toBe(true);
     // A property chosen under another status chooses Open.
     fireEvent.click(segment("Status", "Withdrawn"));
     await waitFor(() => expect(address()).toBe("?status=withdrawn&unread=true"));
@@ -1576,7 +1608,7 @@ describe("the chips", () => {
     const on = [
       "search=notes",
       "status=open",
-      "priority=high",
+      "priority=urgent&priority=high",
       "impact=assuming",
       "overdue=true",
       "effort=under_1h",
@@ -1610,8 +1642,13 @@ describe("the chips", () => {
     const topics = at("topic=builder/main/auth&topic=reviewer/main/billing");
     expect([badgeOf(topics), chipText(topics)]).toEqual(["T", "2 topics"]);
     expect(badgeOf(at("search=notes"))).toBeUndefined();
-    // The status chip says the status.
+    // The status chip says the status, and the priority chip names each
+    // priority chosen.
     expect(chipText(at("status=open"))).toBe("Status: Open");
+    const priorities = at("priority=urgent&priority=high");
+    for (const level of ["Urgent", "High"]) {
+      expect(priorities.getAttribute("title")).toContain(level);
+    }
     const remove = (chip: HTMLElement) => {
       chip.focus();
       fireEvent.click(chip);

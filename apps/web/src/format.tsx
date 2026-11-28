@@ -250,6 +250,14 @@ export function authorName(author: Author): string {
   return author.kind === "person" ? author.name : `${author.agent}/${author.session}`;
 }
 
+// A priority in a word, as a roll-up or a filter shows it.
+export const priorityShown: Record<Priority, string> = {
+  urgent: "Urgent",
+  high: "High",
+  normal: "Normal",
+  low: "Low",
+};
+
 export const priorityLabel: Record<Priority, string> = {
   urgent: "Urgent",
   high: "High priority",

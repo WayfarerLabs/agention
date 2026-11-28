@@ -1098,9 +1098,10 @@ kbd {
   font-size: 0.875em;
 }
 
-/* A filter's values as one row of segments, each a radio button, the
-   checked one filled. Segments share the row's width, each at least as wide
-   as its longest word, and wrap onto another row rather than clip a word. */
+/* A filter's values as one row of segments, each a radio button, or a
+   checkbox for a filter taking several, those checked filled. Segments
+   share the row's width, each at least as wide as its longest word, and
+   wrap onto another row rather than clip a word. */
 .segmented {
   margin: var(--space-4) 0;
 }
@@ -1124,8 +1125,8 @@ kbd {
   cursor: pointer;
 }
 
-/* Each radio button covers its segment, unseen, so a tap anywhere on it
-   lands on the radio itself. */
+/* Each radio button or checkbox covers its segment, unseen, so a tap
+   anywhere on it lands on the input itself. */
 .segments input {
   position: absolute;
   inset: 0;

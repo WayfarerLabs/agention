@@ -88,10 +88,10 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
   that adds what the header heads (its group, session, topic or agent) and the mark's own filter to
   the filters on, keeping the others, the order and the grouping: the name and the count keep all
   its threads, the envelope its unread ones, **Blocked on you** those blocking an agent on your
-  answer, and the priority those with an ask at that priority or higher. While a filter on open asks
-  is on, **Blocked on you** and the priority link nowhere, since they count every open ask of the
-  threads shown while those filters keep a thread for one ask meeting them all. **No topic**, which
-  no filter names, the archive box and **last seen** link nowhere. A session's header, whichever way
+  answer, and the priority those with an ask at that priority. While a filter on open asks is on,
+  **Blocked on you** and the priority link nowhere, since they count every open ask of the threads
+  shown while those filters keep a thread for one ask meeting them all. **No topic**, which no
+  filter names, the archive box and **last seen** link nowhere. A session's header, whichever way
   the list is grouped, follows its name with a small arrow of its own, which opens the session's
   page in the sessions view; an agent's, a topic's and a group's have none. The chevron before a
   header's name collapses everything under it or expands it again, as a click anywhere else on the
@@ -114,14 +114,16 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
   - **Status** keeps the threads of one status, which rolls up the asks on their messages: **Open**
     while one waits for your answer; **Answered** once none does and you answered or declined at
     least one; **Withdrawn** when the agent withdrew every one; and **None** for a thread that asks
-    nothing. Beneath it, the properties of open asks: **Priority** at least **Normal+**, **High+**
-    or **Urgent**; **Impact**, **Blocking** where the work the ask is for waits on your answer while
-    the agent carries on with other work, or **Assuming** where it goes on under an assumption;
-    **Due**, **Overdue** past its answer-by; and **Effort** at most **Quick** (a glance, about two
-    minutes), **≤15m** or **≤1h**, which keeps only asks whose agent said how long answering takes.
-    Together they keep the threads with one open ask that meets them all, and any of them keeps only
-    open threads, so **Status** shows **Open** while one is on: choosing one under another status
-    chooses **Open**, and choosing any other status turns them all off.
+    nothing. Beneath it, the properties of open asks: **Priority**, any of **Urgent**, **High**,
+    **Normal**, and **Low**, each a checkbox keeping the asks at that priority alone, so checking
+    **Urgent** and **High** keeps both, and each showing its count whether checked or not;
+    **Impact**, **Blocking** where the work the ask is for waits on your answer while the agent
+    carries on with other work, or **Assuming** where it goes on under an assumption; **Due**,
+    **Overdue** past its answer-by; and **Effort** at most **Quick** (a glance, about two minutes),
+    **≤15m** or **≤1h**, which keeps only asks whose agent said how long answering takes. Together
+    they keep the threads with one open ask that meets them all, and any of them keeps only open
+    threads, so **Status** shows **Open** while one is on: choosing one under another status chooses
+    **Open**, and choosing any other status turns them all off.
   - **Read**: **Unread** keeps the threads with messages you have not read, and **Read by agent**:
     **Unread** those with a message of yours the agent has not read yet, and **Stranded** those
     among them whose agent is not there to read it, as
@@ -153,18 +155,19 @@ button, which acts when pressed or opens a dialog or a menu of things to do, has
   how many threads the list holds with none, and the button at the foot closes the sheet, saying how
   many threads the list holds; so does Escape.
 
-- Each filter that is on shows beneath the head as a compact chip, such as **Unread** or **Status:
-  Withdrawn**; an agent, session or topic shows behind its badge, such as **builder**, a topic as
-  `session/topic`, or **2 agents** when you chose several. A group or a tag shows by its name now,
-  such as **Group: Billing** or **Tag: infra**, or as **2 groups**. A group you have since removed
-  keeps nothing, and its chip says **Removed group**; so does a tag you have removed, whose chip
-  begins **Removed tag**. A single group's or tag's chip shows its color. A pull request or a branch
-  shows beside an icon of two lines merging into one, by its short form, or as **2 pull requests**
-  or **2 branches**. A long label is cut short, at its front for an agent, session, topic, pull
-  request, or branch, so its end stays; holding the pointer over a chip says it whole. Choosing a
-  chip removes its filter. A chip naming one session ends in an arrow of its own, which opens the
-  session's page in the sessions view; the rest of the chip still removes the filter. The grouping,
-  the order and its direction are no filters, so they stay when filters go.
+- Each filter that is on shows beneath the head as a compact chip, such as **Unread**, **Status:
+  Withdrawn**, or **Priority: Urgent, High**; an agent, session or topic shows behind its badge,
+  such as **builder**, a topic as `session/topic`, or **2 agents** when you chose several. A group
+  or a tag shows by its name now, such as **Group: Billing** or **Tag: infra**, or as **2 groups**.
+  A group you have since removed keeps nothing, and its chip says **Removed group**; so does a tag
+  you have removed, whose chip begins **Removed tag**. A single group's or tag's chip shows its
+  color. A pull request or a branch shows beside an icon of two lines merging into one, by its short
+  form, or as **2 pull requests** or **2 branches**. A long label is cut short, at its front for an
+  agent, session, topic, pull request, or branch, so its end stays; holding the pointer over a chip
+  says it whole. Choosing a chip removes its filter. A chip naming one session ends in an arrow of
+  its own, which opens the session's page in the sessions view; the rest of the chip still removes
+  the filter. The grouping, the order and its direction are no filters, so they stay when filters
+  go.
 - The page's address holds the filters, the order, its direction and the grouping, so a list you
   bookmark or share opens as you left it.
 - A row shows the thread's number and title, such as **#9 Release checklist**. While it holds

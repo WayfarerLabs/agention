@@ -424,6 +424,23 @@ describe("a header's links", () => {
     expect(document.activeElement).toBe(label);
   });
 
+  it("lead from a low priority to the asks at low priority", async () => {
+    const rolled = sessionsAlone(groups);
+    serve(bySession, [], {
+      ...rolled,
+      sessions: rolled.sessions.map((each) =>
+        each.agent === "reviewer"
+          ? { ...each, rollup: rollup(1, { unread: 1, priority: "low" }) }
+          : each,
+      ),
+    });
+    renderAt("/?group=session");
+    await screen.findByRole("heading", { name: titled("Review") });
+    expect(targets("Agent reviewer Session main").at(-1)).toBe(
+      "/?priority=low&session=reviewer/main&group=session",
+    );
+  });
+
   it("leave the heading going by its button's name alone", async () => {
     serve(bySession, [], sessionsAlone(groups));
     renderAt("/?group=session");

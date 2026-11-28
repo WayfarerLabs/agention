@@ -46,7 +46,7 @@ describe("list queries", () => {
       overdue: false,
       effort: "under_15m",
       impact: "assuming",
-      priority: "high",
+      priority: ["high"],
       unread: true,
       agent_read: "stranded",
       agent: ["builder"],
@@ -84,7 +84,9 @@ describe("list queries", () => {
     [threadsQuery, { agent_read: "true" }, "agent_read"],
     [threadsQuery, { agent_read: ["unread", "stranded"] }, "agent_read"],
     [sessionThreadsQuery, { status: "Open" }, "status"],
-    [threadsQuery, { priority: "low" }, "priority"],
+    [threadsQuery, { priority: "lowest" }, "priority.0"],
+    [threadsQuery, { priority: ["high", "high"] }, "priority"],
+    [threadsQuery, { priority: [] }, "priority"],
     [threadsQuery, { impact: "none" }, "impact"],
     [threadsQuery, { effort: "longer" }, "effort"],
     [threadsQuery, { sort: "oldest" }, "sort"],
@@ -111,6 +113,17 @@ describe("list queries", () => {
     ).toBe(true);
     expect(fieldOf(threadsQuery.safeParse({ topic: [...topics, "agent-50/main/auth"] }))).toBe(
       "topic",
+    );
+  });
+
+  it("take any set of priorities, low included, one alone as a set of one", () => {
+    expect(threadsQuery.parse({ priority: "low" }).priority).toEqual(["low"]);
+    expect(threadFilters.parse({ priority: ["urgent", "low"] }).priority).toEqual([
+      "urgent",
+      "low",
+    ]);
+    expect(threadsQuery.safeParse({ priority: ["urgent", "high", "normal", "low"] }).success).toBe(
+      true,
     );
   });
 
