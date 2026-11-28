@@ -715,6 +715,23 @@ describe("the head", () => {
     expect(line?.textContent).toBe(says);
   });
 
+  it("shows who settled it and when, above how its asks ended, while it is Settled", async () => {
+    const settledAt = "2026-10-27T11:00:00.000Z";
+    await page.openWith([message(1), message(2, { text: "Merged, so done.", settles: true })], {
+      status: "answered",
+      settled_by: { kind: "session", agent: "builder", session: "main" },
+      updated_at: settledAt,
+    });
+    const line = threadHeader().querySelector(".thread-status.settled");
+    expect(line?.previousElementSibling?.classList.contains("where")).toBe(true);
+    expect(line?.textContent).toContain("main");
+    expect(line?.querySelector("time")?.getAttribute("dateTime")).toBe(settledAt);
+    expect(line?.nextElementSibling?.classList.contains("thread-status")).toBe(true);
+    // The settling message says it settles the thread; the first does not.
+    expect(messageArticle(2).querySelectorAll(".event.settles")).toHaveLength(1);
+    expect(messageArticle(1).querySelector(".event.settles")).toBeNull();
+  });
+
   it("shows no status line while an ask is open or none was asked", async () => {
     await page.openWith([message(1)], { status: "none" });
     expect(threadHeader().querySelector(".thread-status")).toBeNull();

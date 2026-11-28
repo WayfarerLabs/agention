@@ -55,7 +55,8 @@ import {
 // by its ask's number, or the change or edit. Beside answers the box holds
 // additional information; Send sends the answers, the text or both as one
 // message, once there is something complete to send and each box is within
-// its bound.
+// its bound. Settle the thread makes the message settle it, its text saying
+// why; the server refuses it while an ask would stay open, and says so there.
 
 // describeAnswer names a staged answer by its ask's number, in the card's
 // terms: declined, the suggestions picked with notes when words go beside
@@ -207,6 +208,8 @@ export function Composer({
   setDetail,
   detailsShown,
   setDetailsShown,
+  settles,
+  setSettles,
   staged,
   stage,
   unstage,
@@ -254,6 +257,10 @@ export function Composer({
   // since a change or an edit that loads one shows it.
   detailsShown: boolean;
   setDetailsShown: Dispatch<SetStateAction<boolean>>;
+  // Whether the message settles the thread, which the page holds beside the
+  // text, since an edit or a change of a settling message loads it on.
+  settles: boolean;
+  setSettles: Dispatch<SetStateAction<boolean>>;
   staged: Staged | undefined;
   stage: Dispatch<SetStateAction<Staged | undefined>>;
   // Drops what is staged, with the text and detail a change or an edit
@@ -325,7 +332,8 @@ export function Composer({
       text,
       detail,
       basis: basis ?? shown,
-      leftBehind: leftBehind || staged !== undefined || files.files.length > 0 || recording,
+      leftBehind:
+        leftBehind || staged !== undefined || files.files.length > 0 || recording || settles,
     },
     !(blank(text) && blank(detail)) && !asLoaded,
   );
@@ -345,7 +353,7 @@ export function Composer({
   const afterHadFocus = useRef(-1);
   const id = useId();
   const { attachments, ids: fileIds } = attachmentsOf(files.files);
-  const draft = { text, detail, attachments };
+  const draft = { text, detail, attachments, settles };
   // What keeps Send waiting: the files, or a recording here or on an ask's
   // card, whose answer this Send sends.
   const waiting = sendWait(files.files, recording);
@@ -391,6 +399,7 @@ export function Composer({
   const write = async (content: WriteContent) => {
     const sentText = text;
     const sentDetail = detail;
+    const sentSettles = settles;
     const sentStaged = staged;
     const sentFiles = fileIds;
     // Leaving the page keeps the files the write carries.
@@ -427,6 +436,9 @@ export function Composer({
     const unsent = (current: string, sent: string) => (current === sent ? "" : current);
     setText((current) => unsent(current, sentText));
     setDetail((current) => unsent(current, sentDetail));
+    if (sentSettles) {
+      setSettles(false);
+    }
     files.sent(sentFiles);
     // The Details box folds with the detail it sent; one typed meanwhile
     // stays in sight.
@@ -487,18 +499,26 @@ export function Composer({
     }
   };
 
+  // The refusal the operator has since answered by changing Settle the thread,
+  // which no longer shows there.
+  const [answeredRefusal, setAnsweredRefusal] = useState<unknown>(undefined);
   // Why a box keeps Send unavailable shows at that box, and so does a refusal
   // that names it; one that names an answer's own words shows at their field,
   // and any other here.
   const problems = draftProblems(draft);
   const textRefused = failureAt(writer.failure, "text");
   const detailRefused = failureAt(writer.failure, "detail");
+  // A refusal on settling holds only until the toggle changes.
+  const settlesRefused =
+    writer.failure === answeredRefusal ? undefined : failureAt(writer.failure, "settles");
   const textError = problems.text ?? textRefused;
   const detailError = problems.detail ?? detailRefused;
+  const settlesError = problems.settles ?? settlesRefused;
   const otherFailure =
     writer.failure !== undefined &&
     textRefused === undefined &&
     detailRefused === undefined &&
+    failureAt(writer.failure, "settles") === undefined &&
     !wordsRefused(writer.failure)
       ? writer.failure
       : undefined;
@@ -512,6 +532,7 @@ export function Composer({
     setText("");
     setDetail("");
     setDetailsShown(false);
+    setSettles(false);
     for (const file of files.files) {
       files.remove(file.id);
     }
@@ -582,7 +603,8 @@ export function Composer({
         {leftBehind && (
           <p className="hint" role="note">
             This browser kept only your draft's text and details, not what it had staged, attached
-            or was recording, so sending posts them as a new message.
+            or was recording, nor whether it settled the thread, so sending posts them as a new
+            message.
           </p>
         )}
         {staged?.kind === "answers" && staged.replaces === undefined ? (
@@ -687,9 +709,30 @@ export function Composer({
           </button>
         )}
         <AttachList draft={files} attach={attach} disabled={loading} />
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={settles}
+            // Held while a message is sending, as Discard is: the send clears
+            // the toggle once it lands, which would undo a choice made meanwhile.
+            disabled={writer.pending || loading}
+            aria-invalid={settlesError === undefined ? undefined : true}
+            aria-describedby={settlesError === undefined ? undefined : `${id}-settle-error`}
+            onChange={(event) => {
+              setAnsweredRefusal(writer.failure);
+              setSettles(event.target.checked);
+            }}
+          />
+          Settle the thread
+        </label>
+        {settlesError !== undefined && (
+          <p id={`${id}-settle-error`} className="field-error">
+            {settlesError}
+          </p>
+        )}
         {/* A recording has its own Discard, so this one waits until the
             recording is done with. */}
-        {(!empty || staged !== undefined) && !dictation.busy && (
+        {(!empty || staged !== undefined || settles) && !dictation.busy && (
           <ConfirmButton
             label="Discard draft"
             confirmLabel="Discard"

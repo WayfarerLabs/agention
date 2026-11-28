@@ -1584,8 +1584,8 @@ article:has(:is(textarea, input:not([type="checkbox"], [type="radio"])):focus) >
   overflow-wrap: anywhere;
 }
 
-/* A thread with no ask open says, muted and on one line, that its asks were
-   answered, or withdrawn and why. */
+/* A thread says, muted and on one line, who settled it while it is Settled,
+   and with no ask open, that its asks were answered, or withdrawn and why. */
 .row-status {
   overflow: hidden;
   margin: 0;
@@ -1953,8 +1953,8 @@ button.fold-toggle[aria-expanded="false"] > .icon {
   background: var(--color-surface-2);
 }
 
-/* A settled thread's status, and why a stranded thread's session has not
-   read it, muted, under where the thread is. */
+/* Who settled a Settled thread and when, how its asks ended, and why a
+   stranded thread's session has not read it, under where the thread is. */
 .thread-header .thread-status,
 .thread-header .stranded {
   margin: 0 0 var(--space-2);

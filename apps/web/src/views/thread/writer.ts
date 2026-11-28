@@ -117,18 +117,22 @@ function complete(staged: StagedAnswer): boolean {
 }
 
 // What the operator writes in the composer's boxes: the message's text, a
-// summary, and its detail, which the thread shows folded under the text; and
-// the files it carries, once each is ready to send.
+// summary, and its detail, which the thread shows folded under the text; the
+// files it carries, once each is ready to send; and whether it settles the
+// thread.
 export interface Draft {
   text: string;
   detail: string;
   attachments: Attachment[];
+  settles: boolean;
 }
 
-// Why each of the composer's boxes cannot be sent as it stands, if it cannot.
+// Why each of the composer's boxes, and its settling, cannot be sent as it
+// stands, if it cannot.
 export interface DraftProblems {
   text?: string;
   detail?: string;
+  settles?: string;
 }
 
 const count = (value: number) => value.toLocaleString("en");
@@ -142,14 +146,21 @@ function overBy(text: string, max: number): string | undefined {
     : undefined;
 }
 
-// draftProblems says why a draft cannot be sent: a box over its bound, or
-// detail without text, which it goes under. Neither box cuts what is typed or
-// pasted into it, so the operator sees what is over and moves it; the
-// message box, a summary, says where the rest belongs.
-export function draftProblems({ text, detail }: Pick<Draft, "text" | "detail">): DraftProblems {
+// draftProblems says why a draft cannot be sent: a box over its bound, detail
+// without text, which it goes under, or settling without text, which says
+// why. Neither box cuts what is typed or pasted into it, so the operator sees
+// what is over and moves it; the message box, a summary, says where the rest
+// belongs. Whether asks are left open is the server's to say, since what this
+// message answers or declines counts.
+export function draftProblems({
+  text,
+  detail,
+  settles = false,
+}: Pick<Draft, "text" | "detail"> & Partial<Pick<Draft, "settles">>): DraftProblems {
   const textOver = overBy(text, maxMessageText);
   const detailOver = overBy(detail, maxMessageDetail);
   return {
+    ...(settles && blank(text) ? { settles: "Say in the message why the thread is settled." } : {}),
     ...(textOver === undefined
       ? {}
       : {
@@ -169,7 +180,11 @@ export function draftProblems({ text, detail }: Pick<Draft, "text" | "detail">):
 // text or files: the page never sends a bare withdrawal.
 export function sendable(draft: Draft, staged: Staged | undefined): boolean {
   const problems = draftProblems(draft);
-  if (problems.text !== undefined || problems.detail !== undefined) {
+  if (
+    problems.text !== undefined ||
+    problems.detail !== undefined ||
+    problems.settles !== undefined
+  ) {
     return false;
   }
   if (staged?.kind === "answers") {
@@ -218,18 +233,21 @@ function answerOf(staged: StagedAnswer): NonNullable<WriteContent["answers"]>[nu
 }
 
 // contentOf builds the message the composer sends: its text, its detail and
-// its files, each when it has any, and what is staged. A replacement is a
-// whole message, so an edit carries the text, detail and files it keeps
-// again, and a change of answers its text, detail and files, if any, and
-// every answer; both carry the parts the composer has no box for again.
+// its files, each when it has any, whether it settles the thread, and what is
+// staged. A replacement is a whole message, so an edit carries the text,
+// detail and files it keeps again, and settles again while the toggle it
+// loaded stays on, and a change of answers its text, detail and files, if
+// any, and every answer; both carry the parts the composer has no box for
+// again.
 export function contentOf(
-  { text, detail, attachments }: Draft,
+  { text, detail, attachments, settles }: Draft,
   staged: Staged | undefined,
 ): WriteContent {
   const written = {
     ...(blank(text) ? {} : { text }),
     ...(blank(detail) ? {} : { detail }),
     ...(attachments.length === 0 ? {} : { attachments }),
+    ...(settles ? { settles: true as const } : {}),
   };
   if (staged === undefined) {
     return written;

@@ -3,7 +3,7 @@
 // A second server on another port of the same host starts for the tests that
 // ask for it, presenting the same certificate, as servers sharing a host may,
 // and so do servers of the diagram, voice, API key, attachment, selection,
-// session link, saved views, and notifications tests' own.
+// session link, saved views, notifications, and settled threads tests' own.
 //
 // Passkeys need a secure context whose certificate the browser accepts and a
 // relying party that is a domain name; the server refuses an IP address as
@@ -12,7 +12,13 @@
 // by its public key (--ignore-certificate-errors-spki-list). Trusting that one
 // key makes the page a real secure context, where ignoring certificate errors
 // altogether would only bypass them.
-import { test as base, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
+import {
+  test as base,
+  type BrowserContext,
+  type CDPSession,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -56,6 +62,9 @@ export const savedViewsServerName = "Saved views";
 // The name of the server the notifications tests start for themselves, which
 // also serves the API's documentation.
 export const notificationsServerName = "Notifications";
+
+// The name of the server the settled threads tests start for themselves.
+export const settledServerName = "Settled";
 
 // The name of the server the README's screenshots are taken of.
 export const screenshotsServerName = "Agention";
@@ -224,6 +233,7 @@ export const test = base.extend<
     sessionLinksServer: Agention;
     savedViewsServer: Agention;
     notificationsServer: Agention;
+    settledServer: Agention;
     screenshotsServer: Agention;
   }
 >({
@@ -244,6 +254,7 @@ export const test = base.extend<
   sessionLinksServer: [serving(sessionLinksServerName), { scope: "worker" }],
   savedViewsServer: [serving(savedViewsServerName), { scope: "worker" }],
   notificationsServer: [serving(notificationsServerName, ["--api-docs"]), { scope: "worker" }],
+  settledServer: [serving(settledServerName), { scope: "worker" }],
   screenshotsServer: [serving(screenshotsServerName), { scope: "worker" }],
   launchOptions: [
     async ({ certificate }, use) => {
@@ -307,6 +318,24 @@ export async function resize(
   // measure nothing before they do.
   await page.waitForFunction((width) => window.innerWidth === width, size.width);
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+}
+
+// withinTheScreen checks that what is shown stands whole across the screen's
+// width, with nothing on the page to scroll sideways.
+export async function withinTheScreen(shown: Locator): Promise<void> {
+  const page = shown.page();
+  const width = page.viewportSize()?.width ?? 0;
+  const box = await shown.boundingBox();
+  base.expect(box).not.toBeNull();
+  base.expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+  base.expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+  base
+    .expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
 }
 
 // approve approves as proposed the registration waiting with a code: from

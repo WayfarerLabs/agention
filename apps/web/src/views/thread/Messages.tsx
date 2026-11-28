@@ -756,7 +756,7 @@ function AnswerEvent({
 }
 
 // What a message does besides its text: replace or retract another, answer
-// asks, withdraw asks, set the topic.
+// asks, withdraw asks, set the topic, settle the thread.
 function Events({
   message,
   find,
@@ -782,6 +782,7 @@ function Events({
         </p>
       ))}
       {message.topic !== undefined && <p className="event">Set the topic to “{message.topic}”.</p>}
+      {message.settles === true && <p className="event settles">Settled the thread.</p>}
     </>
   );
 }

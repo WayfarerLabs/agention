@@ -2444,7 +2444,14 @@ comments give the document's handler and its rules, among them `modified`, for A
 
 A change of answers or an edit sends a whole message, so it carries again, unchanged, the
 references, pull requests and branches of the message it replaces, which the composer has no box for
-(`src/views/thread/writer.ts`).
+(`src/views/thread/writer.ts`). It loads **Settle the thread** from that message too while it is the
+thread's latest, so the replacement of the settling message settles again unless the operator
+unchecks it, and that of an older one never settles the thread over a later reply. The toggle counts
+as a draft, so no change or edit loads over it.
+
+Settling without text is refused before sending, from the draft alone. Whether an ask would stay
+open is the server's rule, never copied into the browser: what the message itself answers or
+declines counts, so its refusal, which names the asks, shows at the toggle with the draft kept.
 
 The composer checks its boxes against the API's bounds of a message's text and detail, counted with
 the API's `codePointLength` as the server counts them, and never cuts what is typed into them.

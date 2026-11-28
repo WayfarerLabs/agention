@@ -227,8 +227,13 @@ disagreement is the finding.
   thread's fold and added to the list on screen from a row, but selecting the row in its place when
   held by touch, and when tapped while a touch selection is under way, the forge link beside a
   message's or the fold's entry opening the forge's page in a new tab, and the filter sheet's **Pull
-  request** and **Branch** with their counts, chips, and the address, on a phone's width too
-  (`docs/operator-guide.md` "Signing in", "Adding it to a phone or a desktop", "Voice",
+  request** and **Branch** with their counts, chips, and the address, on a phone's width too; and
+  settled threads: the composer's **Settle the thread**, refused before sending without text and by
+  the server with an ask open, shown at the toggle with the draft kept, and loaded by an edit or a
+  change of answers of a settling message; the message's **Settled the thread**; the thread's head
+  saying who settled it and when; a row's words naming who settled it at 320 pixels across; the
+  filter sheet's **Settled** segment with its counts and chips; and a reply from either party ending
+  Settled (`docs/operator-guide.md` "Signing in", "Adding it to a phone or a desktop", "Voice",
   "Attachments" and "Approving agents"; `docs/web-ui.md`). Real-phone passkeys, the web UI added to
   a phone's home screen and opening standalone, Send above a phone's keyboard while writing,
   dictation with a real provider, diagrams and their viewer in iOS Safari, what each item of
