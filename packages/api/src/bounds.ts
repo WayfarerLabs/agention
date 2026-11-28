@@ -5,7 +5,7 @@ import { z } from "zod";
 export const sequence = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 // Thread numbers count from 1 within a session and share the sequences' bound.
-export const threadNumber = sequence;
+export const threadNumber = sequence.min(1);
 
 // Ask numbers count from 1 within a thread and share the sequences' bound.
 export const askNumber = sequence.min(1);

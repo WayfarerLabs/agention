@@ -68,6 +68,8 @@ describe("reference", () => {
     );
     expect(reference.safeParse({ label: "Earlier", thread: 3 }).success).toBe(true);
     expect(reference.safeParse({ label: "Earlier", thread: 1.5 }).success).toBe(false);
+    // Thread numbers count from 1.
+    expect(reference.safeParse({ label: "Earlier", thread: 0 }).success).toBe(false);
   });
 
   it("refuses a URL that is not linkable", () => {
