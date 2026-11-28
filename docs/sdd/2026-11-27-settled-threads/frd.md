@@ -2,8 +2,8 @@
 
 <!-- cspell:ignore Zulip -->
 
-- Status: Draft, for the operator to accept. The questions still open are listed under
-  [Open questions for the operator](#open-questions-for-the-operator), each with a recommendation.
+- Status: Accepted by the operator on 2026-11-27, with the rulings recorded under
+  [Operator rulings](#operator-rulings-2026-11-27-onward).
 - Date: 2026-11-27
 - Repository: `WayfarerLabs/agention`, which holds this SDD; paths below are relative to its root
 - Ownership: the operator owns these requirements. The effort lead owns the HLA, plan and LLDs and
@@ -12,7 +12,7 @@
   Agention (2026-11-27). Offered an explicit, shared state named Settled in place of showing an
   agent's private archive, the operator picked it, adding: "maybe this is a flag on a message that
   aggregates to the thread level? I like it. But please do put some serious thought into it." The
-  operator also asked whether priority should work that way (Q1). Research:
+  operator also asked whether priority should work that way (ruling 1). Research:
   [prior art](prior-art-research.md).
 
 ## Why this exists
@@ -77,8 +77,8 @@ asks and answers or declines the asks put to it, in the same message or before; 
 which, as any withdrawal or answer does.
 
 **S6. Marks are each participant's own.** Settling reads and archives nothing for anyone, and a
-settling message counts for each participant's read and archive marks as any message does, unless
-the operator answers Q4 otherwise.
+settling message counts for each participant's read and archive marks as any message does (ruling
+4).
 
 ### Seeing and clearing
 
@@ -152,47 +152,21 @@ mark, the head, and clearing Settled threads by the filter and read and archive.
   with no reference to this SDD, and a decision record amends ADR 0001's limit.
 - Gates and CI pass, and the effort ships in a release.
 
-## Open questions for the operator
+## Operator rulings, 2026-11-27 onward
 
-**Q1. Priority as a thread attribute.** Settled is the second thread attribute read from messages,
-after topic, though the two differ: only the requester sets a topic, and anyone may settle. Should
-this effort also give threads a priority of their own?
+Answered in Agention on 2026-11-27, local time (thread 39, message 12, 2026-11-28T03:43Z). The
+operator accepted these requirements, answering "Accept (Recommended)" to "Accept the Settled
+threads requirements (PR #199) with the recommended answers below?", and picked the recommended
+answer to each of the five questions the draft asked:
 
-|                                    | What it means                                                  | Cost                                                                                                                                                                         |
-| ---------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Settled only now** (recommended) | Priority stays on asks.                                        | None now.                                                                                                                                                                    |
-| **Settled and a thread priority**  | A thread without asks, such as a report, can carry a priority. | A rule for combining it with asks' priorities in sorting and filters. If the operator may set it too, it reverses ADR 0001's "priority is the requester's stated judgement". |
-| **Priority moves to threads**      | Asks lose their own priority.                                  | The biggest change: the agent API, the filters, every saved view, and the same ADR reversal.                                                                                 |
-
-**Q2. What ends Settled.** S2 ends it with any later message. Its cost: your "thanks" or "seen,
-merged" on a thread an agent settled ends it too, so you settle it yourself if you want it to stay
-out of the way, and an agent may settle again after you write. The alternative keeps it Settled and
-marks the thread as having activity since, which hides new work under the mark, the complaint about
-systems that stay resolved on a reply. The research also weighed exempting the settler's own later
-messages; S2 drops that exception, since the settler settles its follow-up too.
-
-|                                             |                                           |
-| ------------------------------------------- | ----------------------------------------- |
-| **Any later message ends it** (recommended) | One rule, the same for every participant. |
-| **Stays Settled, marked "activity since"**  | Fewer revivals; a second signal to read.  |
-
-**Q3. Open asks.** Should settling be refused while asks are open, so the settler withdraws or
-answers them first (S5, recommended)? Its cost is that step: to settle, the settler first answers,
-declines, or withdraws every open ask, in the settling message or before. Or should settling
-withdraw and decline them itself, which cannot be undone by taking the settling back, since a
-withdrawal and an answer are never undone? Or be allowed with asks still open, which leaves the
-read-and-archive clearing step skipping those threads, since archiving skips a thread with an ask
-open to you?
-
-**Q4. Your marks.** An agent's settling message is a new message, so it leaves the thread unread for
-you, and brings back a thread you had archived (S6). Keep that (recommended), so every settling
-reaches you for the spot check you asked for, and clear them with read and archive? Or should a
-settling message leave your marks as they were, which needs an exception to how every message counts
-today?
-
-**Q5. The default list.** Should the default list keep showing Settled threads (recommended), so you
-see what agents settle and leave them out by a saved view, or hide them unless asked?
-
-## Operator rulings
-
-None yet.
+1. "Q1: give threads their own priority too?": "Settled only now (Recommended)", described as
+   "Priority stays on asks." Threads gain no priority of their own in this effort.
+2. "Q2: what ends Settled?": "Any later message (Recommended)", described as "One rule; your
+   'thanks' ends it too, so settle it yourself if you want it out of the way." (S2)
+3. "Q3: settling a thread with open asks?": "Refused until resolved (Recommended)", described as
+   "The settler withdraws or answers first, explicitly." (S5)
+4. "Q4: should an agent's settling message mark the thread unread for you?": "Yes, like any message
+   (Recommended)", described as "Every settle reaches you for a spot check; clear with read and
+   archive." (S6)
+5. "Q5: show Settled threads in the default list?": "Show them (Recommended)", described as "Leave
+   them out with a saved view." (S7, S9)

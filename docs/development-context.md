@@ -11,9 +11,10 @@ index of those docs.
 - SDD location: `docs/sdd/` (`CONTRIBUTING.md` "Design documents"); active efforts: pull request and
   branch links (`docs/sdd/2026-11-25-pr-and-branch-links/`), accepted 2026-11-25, saved views
   (`docs/sdd/2026-11-25-saved-views/`), accepted 2026-11-25, the audit log
-  (`docs/sdd/2026-11-24-audit-log/`), accepted 2026-11-25, and notifications
-  (`docs/sdd/2026-11-23-notifications/`), accepted 2026-11-25; SDD check: `scripts/check-sdd.sh`, in
-  the "SDD records" gate of `scripts/check.sh`
+  (`docs/sdd/2026-11-24-audit-log/`), accepted 2026-11-25, notifications
+  (`docs/sdd/2026-11-23-notifications/`), accepted 2026-11-25, and settled threads
+  (`docs/sdd/2026-11-27-settled-threads/`), accepted 2026-11-27; SDD check: `scripts/check-sdd.sh`,
+  in the "SDD records" gate of `scripts/check.sh`
 
 ## Identity and design
 
