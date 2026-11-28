@@ -24,32 +24,33 @@
 
 Each box lands in the feature's pull request, with the docs that its change makes true.
 
-- [ ] `packages/api`: `settles` in `messageFields`, `null` in `partNames`, and the text refinement
+- [x] `packages/api`: `settles` in `messageFields`, `null` in `partNames`, and the text refinement
       covering it, renamed for detail and settling both; `settles` on a message as read;
-      `settled_by` on `threadSummary`; the `settled` list filter, after `status`, and its counts;
-      the next agent API version with its constant.
-- [ ] Migration: `messages.settles`; its frozen hash.
-- [ ] Store: `appendMessage` and `Parts` writing it; the open-asks refusal in `sendMessage`;
+      `settled_by` on `threadSummary`; the `settled` list filter, after `effort`, and its counts;
+      the next agent API version with its constant (#208).
+- [x] Migration: `messages.settles`; its frozen hash (#208).
+- [x] Store: `appendMessage` and `Parts` writing it; the open-asks refusal in `sendMessage`;
       `threadsSeen` deriving `settled_by` from the latest message its `base` already joins;
-      `listParts`, `parametersOf`, and `countThreads` for the filter.
-- [ ] HTTP: the `added[]` entry leaving `settles` and `settled_by` out below the new version; the
-      API reference regenerated, which is the operator API's description.
-- [ ] Audit: `settles` in `MessageEntry` and `messageResource`.
-- [ ] Bridge: `message_send`, `thread_list`, and `thread_get` descriptions; the compatibility
-      suite's settle case and its version-gated fields.
-- [ ] Web: the composer's **Settle the thread**, needing text, showing the server's refusal at it,
+      `listParts`, `parametersOf`, and `countThreads` for the filter (#208).
+- [x] HTTP: the `added[]` entry leaving `settles` and `settled_by` out below the new version; the
+      API reference regenerated, which is the operator API's description (#208).
+- [x] Audit: `settles` in `MessageEntry` and `messageResource` (#208).
+- [x] Bridge: `message_send`, `thread_list`, and `thread_get` descriptions; the compatibility
+      suite's settle case and its version-gated fields (#208).
+- [x] Web: the composer's **Settle the thread**, needing text, showing the server's refusal at it,
       and kept by an edit; the events line; the head; the row's words with who settled it; the
-      filter sheet's **Settled** segment and its chip.
-- [ ] The word: `settledWords` and the `.thread-status` comment renamed; the other uses the HLA
-      lists, test fixtures included, reworded.
-- [ ] Agents' guidance: the usage skill's four points; the generated plugins regenerated.
-- [ ] Docs: the new ADR amending ADR 0001's limit; `docs/architecture.md` ("Messages and asks",
-      "Writing a message", "Derived state", "Filters", "Counts", "Versions of the APIs", "Audit
-      log", "Tools", "The thread list", "The composer"); `docs/web-ui.md`; `docs/operator-guide.md`;
-      `SECURITY.md`'s **Roles**; review check A5; `CONTRIBUTING.md` "The agent API";
-      `docs/live-testing.md`'s web UI surfaces (the composer's settle, the filter's segment, the
-      row's words, and the head); `README.md` unchanged, since it names none of the list's filters.
-- [ ] Tests at the levels the HLA's "Testing" names; gates and CI pass.
+      filter sheet's **Settled** segment and its chip (#208).
+- [x] The word: `settledWords` and the `.thread-status` comment renamed; the other uses the HLA
+      lists, test fixtures included, reworded (#208).
+- [x] Agents' guidance: the usage skill's four points; the generated plugins regenerated (#208).
+- [x] Docs: the new ADR amending ADR 0001's limit; `docs/architecture.md` ("Messages and asks",
+      "Writing a message", "Derived state", "Filters", "Versions of the APIs", "Tools", "The
+      composer"; "Counts", "Audit log", and "The thread list" needed no change, being generic over
+      filters and audit fields); `docs/web-ui.md`; `docs/operator-guide.md`; `SECURITY.md`'s
+      **Roles**; review check A5; `CONTRIBUTING.md` "The agent API"; `docs/live-testing.md`'s web UI
+      surfaces (the composer's settle, the filter's segment, the row's words, and the head);
+      `README.md` unchanged, since it names none of the list's filters (#208).
+- [x] Tests at the levels the HLA's "Testing" names; gates and CI pass (#208).
 
 Done when: an agent settles a thread it started, saying why, after withdrawing its open asks; the
 operator sees the row mark and the head, filters the list to Settled threads, selects them, and
