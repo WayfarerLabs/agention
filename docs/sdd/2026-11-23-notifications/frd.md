@@ -205,3 +205,8 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
     your devices before merge?" The operator picked "Yes, own code" ("As designed, plus the
     test-only round-trip check."). So ruling 6 stands, with an independent decryption in the tests
     and the operator's devices as the acceptance before merge.
+12. No overall rate cap (ask 18): answered in Agention on 2026-11-27, local time (thread 19, message
+    23, 2026-11-28T03:44Z), to the question in message 19: "Ship notifications without an overall
+    rate cap for now?" The operator picked "No cap for now (Recommended)" ("One per thread until
+    read, plus each agent's write rate; revisit with real use."). So nothing caps how often
+    notifications are sent beyond a thread notifying once until read and each agent's write rate.
