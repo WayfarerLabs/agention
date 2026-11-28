@@ -83,8 +83,23 @@ export function sessionActorId(db: Database, sessionId: number): number {
   return row.id;
 }
 
-// authorOf names an actor as the API shows it: a session by its agent and
-// session names, a person by name.
+// The names of an actor, as a join through its session and agent, or its
+// person, reads them: a person's name, or a session's and its agent's.
+export interface ActorNames {
+  person: string | null;
+  agent: string | null;
+  session: string | null;
+}
+
+// authorFrom names an actor from its names as the API shows it: a person by
+// name, otherwise a session by its agent and session names.
+export function authorFrom({ person, agent, session }: ActorNames): Author {
+  return person !== null
+    ? { kind: "person", name: person }
+    : { kind: "session", agent: agent ?? "", session: session ?? "" };
+}
+
+// authorOf names an actor as the API shows it.
 export function authorOf(db: Database, actorId: number): Author {
   const row = db
     .prepare(
@@ -95,8 +110,6 @@ export function authorOf(db: Database, actorId: number): Author {
        LEFT JOIN people p ON p.id = a.person_id
        WHERE a.id = ?`,
     )
-    .get(actorId) as { agent: string | null; session: string | null; person: string | null };
-  return row.person !== null
-    ? { kind: "person", name: row.person }
-    : { kind: "session", agent: row.agent ?? "", session: row.session ?? "" };
+    .get(actorId) as unknown as ActorNames;
+  return authorFrom(row);
 }

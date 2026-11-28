@@ -465,6 +465,27 @@ describe("every write", () => {
     expect(eventsAfter(harness.fixture.db, after)).toEqual([]);
   });
 
+  it("records whether each message settles its thread", async () => {
+    // The data of the message event a message to thread 2, which asks
+    // nothing, records.
+    const messageData = async (settles: true | undefined) => {
+      const {
+        recorded: [event],
+      } = await drive("api_key", async ({ harness }) => ({
+        call: [
+          "POST",
+          "/s/builder/main/threads/2/messages",
+          { request_id: requestId(), seen_through: thread2(harness), text: "Done.", settles },
+        ],
+        events: ["sendMessage"],
+      }));
+      const resources = parsed(event as StoredEvent).resources as { type: string; data: object }[];
+      return resources.find((each) => each.type === "message")?.data;
+    };
+    expect(await messageData(undefined)).toMatchObject({ settles: false });
+    expect(await messageData(true)).toMatchObject({ settles: true });
+  });
+
   it("names the message of declines among what an archiving action wrote", async () => {
     const {
       recorded: [event],

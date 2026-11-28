@@ -39,15 +39,16 @@ one file does and why is in that file's header comment, and this document names 
 
 The rest of this document uses these terms:
 
-| Term                   | Meaning                                                                                                                            |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Requester and audience | A thread's two roles: the agent session it belongs to, which alone asks, and the operator, who alone answers                       |
-| Live message           | A message no later one replaces ([Messages and asks](#messages-and-asks))                                                          |
-| Open ask               | An ask still waiting for its answer ([Messages and asks](#messages-and-asks))                                                      |
-| Thread status          | A thread's roll-up of its asks ([Derived state](#derived-state))                                                                   |
-| Marks                  | Each party's own read and archive marks on a thread ([Marks](#marks))                                                              |
-| Quiet                  | A session the server has not heard from lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                      |
-| Stranded               | A thread whose session is not there to read what the operator wrote ([Presence, quiet and stranded](#presence-quiet-and-stranded)) |
+| Term                   | Meaning                                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requester and audience | A thread's two roles: the agent session it belongs to, which alone asks, and the operator, who alone answers                                       |
+| Live message           | A message no later one replaces ([Messages and asks](#messages-and-asks))                                                                          |
+| Open ask               | An ask still waiting for its answer ([Messages and asks](#messages-and-asks))                                                                      |
+| Thread status          | A thread's roll-up of its asks ([Derived state](#derived-state))                                                                                   |
+| Settled                | A thread whose latest message settles it: either party's claim, in a message saying why, that its matter is over ([Derived state](#derived-state)) |
+| Marks                  | Each party's own read and archive marks on a thread ([Marks](#marks))                                                                              |
+| Quiet                  | A session the server has not heard from lately ([Presence, quiet and stranded](#presence-quiet-and-stranded))                                      |
+| Stranded               | A thread whose session is not there to read what the operator wrote ([Presence, quiet and stranded](#presence-quiet-and-stranded))                 |
 
 ## Components
 
@@ -243,6 +244,10 @@ catch `REPLACE`. A message's asks, answers and withdrawals are rows of their own
   with that ask's question, so a reader knows what it answers.
 - **A withdrawal** belongs to its message and names the number of the ask it withdraws, with the
   requester's reason.
+
+A message may also settle its thread, a column of its own: a check holds that a settling message has
+text and is never a thread's first, and the store holds that it leaves no ask open
+([Writing a message](#writing-a-message)).
 
 Two views define once, for every query, which messages are live (`live_messages`: no later message
 replaces them) and which asks are open (`open_asks`: on a live message, and no live message answers
@@ -460,6 +465,11 @@ The rules that depend on the thread's messages:
   or withdraws it by name: its asks and its withdrawals of those asks number at least as many as it
   holds open, since a replacement's asks are numbered anew and the count is what can be checked.
 - **A thread reference** names a thread in the same session.
+- **Settling.** Either party may settle a thread with any later message, never its first, which
+  carries no such field. Its text says why, a rule the request's schema holds. Once the message is
+  written with its own asks, answers and withdrawals, no ask of the thread may be open, so what the
+  message itself resolves counts; a refusal names the open asks and tells the requester to withdraw
+  them, or the audience to answer or decline them, in that message or before.
 
 Refusals name asks by their numbers.
 
@@ -473,15 +483,16 @@ A later message carries some part unless it replaces another, a rule the request
 since no constraint on a message's row sees the rows of its own. A thread's first message may carry
 nothing, since its title speaks for it. A replacement carrying nothing retracts the message it
 replaces, which the rules above allow only while that message holds no open ask. A replacement is a
-whole message: what it leaves out, its detail included, is gone with the message it replaces.
+whole message: what it leaves out, its detail and its settling included, is gone with the message it
+replaces.
 
 The write appends the message with its asks and answers and raises the writer's read mark through it
 in the same transaction. A writer for whom the thread is archived keeps it archived, its archive
 mark moving to its own message.
 
 A write answers with the thread number and the message's sequence. A retry of the same request id
-gets that same answer, while a retry with any part changed, its detail included, is a request-id
-conflict. A stale write appends nothing, so its retry may reuse the id.
+gets that same answer, while a retry with any part changed, its detail or its settling included, is
+a request-id conflict. A stale write appends nothing, so its retry may reuse the id.
 
 ### Derived state
 
@@ -499,6 +510,13 @@ these that holds:
 4. `answered`, for the rest.
 
 It is the same whoever views it.
+
+A thread is Settled while its latest message settles it. That message is always live, since only a
+later message replaces another, so any later message ends Settled: a reply from either party, a
+replacement that does not settle again, or a retraction. The summary's `settled_by` names the
+settling message's author while the thread is Settled, read from the latest message the summary's
+query already joins, and is absent otherwise; its sequence and time are the summary's `last_seq` and
+`updated_at`. Settling reads and archives nothing for anyone.
 
 A thread's summary lists at most 50 of its open asks, the most pressing, beside their count and the
 earliest.
@@ -800,6 +818,7 @@ The operator's list also takes these:
 
 | Filter                      | Keeps the threads                                                                                                                                                  |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settled`                   | `only`: Settled ([Derived state](#derived-state)). `hide`: not Settled. Absent, both                                                                               |
 | `priority`                  | With an open ask at one of the priorities given, each named once and matched exactly                                                                               |
 | `impact`                    | With an open ask blocking, or assuming                                                                                                                             |
 | `overdue`                   | With an open ask past its answer-by                                                                                                                                |
@@ -1139,7 +1158,11 @@ contract bumps it ([CONTRIBUTING.md](../CONTRIBUTING.md#the-agent-api)).
   middleware keeps a list of what each version added and drops those fields: before
   `codeLinksAgentApiVersion`, a message's `pull_requests` and `branches`, and the thread's roll-up
   of them, from the thread's answer and a stale write's missed messages; before
-  `summaryLinksAgentApiVersion`, the summaries' `links` from a thread's answer, a list and a wait.
+  `summaryLinksAgentApiVersion`, the summaries' `links` from a thread's answer, a list and a wait;
+  before `settledAgentApiVersion`, a message's `settles` from the thread's answer and a stale
+  write's missed messages, and the summaries' `settled_by` from a thread's answer, a list and a
+  wait. A bridge that old cannot settle, reads a settling message as its text, and ends Settled by
+  writing, as any message does.
 - **Refusals.** The mount's first middleware refuses a request stating a version above the server's
   or below its oldest as `unsupported_version`, status 400, before authentication or any other work,
   worded for the agent as the bridge's own problems are: a newer bridge is told to have the operator
@@ -1947,7 +1970,9 @@ the session's status; and the two file tools, `file_upload` and `file_get`
   each of which may be all a message carries, and the session's `state`, with its `outcome`, and a
   `note`, which report its status with the write, refusing an outcome apart from `stopped` as
   `session_update` does. A session never answers an ask, so `message_send` takes no answers; it
-  takes the withdrawals of the session's own open asks.
+  takes the withdrawals of the session's own open asks, and `settles`, refusing it without text as
+  the server does. `thread_create` takes no `settles`, since a thread's first message never settles
+  it.
 - **Waiting.** `message_wait` waits for nothing by default and answers at once, which is how an
   agent checks for answers as it works; a longer wait is for an agent with no other work and open
   asks or unread messages, or for a waiter of its own. `register`'s answer, once approved, says how

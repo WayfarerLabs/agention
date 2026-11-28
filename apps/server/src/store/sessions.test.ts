@@ -453,7 +453,7 @@ describe("listSessions", () => {
     expect(summary("side").open_asks).toEqual({ count: 1, blocking_count: 1 });
     // An answered ask and a withdrawn one wait on no one.
     fixture.write(fixture.operator, first, { answers: [{ ask: 1, text: "Ship it." }] });
-    fixture.write(agent.identity, second, { withdrawals: [{ ask: 1, reason: "Settled." }] });
+    fixture.write(agent.identity, second, { withdrawals: [{ ask: 1, reason: "Moot." }] });
     expect(summary().open_asks).toEqual({ count: 1, blocking_count: 0 });
     // A thread the session archived still holds the asks open in it.
     fixture.write(agent.identity, second, {

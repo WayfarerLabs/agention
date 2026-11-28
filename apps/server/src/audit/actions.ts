@@ -81,7 +81,8 @@ export interface LoggedStatus {
 
 // A message a write appended: the numbers of the asks it puts, answers,
 // declines, and withdraws, the files it carries by id, the message it
-// replaces, and the session status the write logged.
+// replaces, whether it settles the thread, and the session status the write
+// logged.
 export interface MessageEntry {
   thread: ThreadRef;
   seq: number;
@@ -91,6 +92,7 @@ export interface MessageEntry {
   withdrawals: number[];
   files: number[];
   replaces: number | null;
+  settles: boolean;
   status: LoggedStatus | null;
 }
 
@@ -184,6 +186,7 @@ const messageResource = (message: MessageEntry): JsonObject => ({
     withdrawals: message.withdrawals,
     files: message.files.map((id) => `file:${id}`),
     replaces: message.replaces,
+    settles: message.settles,
     status: statusData(message.status),
   },
 });

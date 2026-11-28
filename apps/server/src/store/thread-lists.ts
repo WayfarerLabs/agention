@@ -18,6 +18,7 @@ import {
   priority,
   type Rollup,
   type SessionThreadsQuery,
+  settledFilter,
   shortFormKey,
   type SummaryLinks,
   type ThreadActionInput,
@@ -105,6 +106,10 @@ const listParts = {
   not_archived: { keeps: "NOT th.archived", on: (query) => !query.include_archived },
   search: { keeps: `${titleSearch} OR ${messageSearch}`, on: searching },
   status: { keeps: "th.status = :status", on: (query) => query.status !== undefined },
+  settled: {
+    keeps: "IIF(:settled = 'only', th.settled, NOT th.settled)",
+    on: (query) => query.settled !== undefined,
+  },
   unread: { keeps: "th.unread > 0", on: (query) => query.unread },
   // A live message by the viewer beyond the other party's read mark, and for
   // stranded, while the session is quiet, has no active credential or has
@@ -234,6 +239,7 @@ function parametersOf(query: ThreadFilters, viewing: ViewerAndCutoff, now: numbe
     now,
     search: query.search === undefined ? null : ftsQuery(query.search),
     status: query.status ?? null,
+    settled: query.settled ?? null,
     agent_read: query.agent_read ?? null,
     priority: JSON.stringify(query.priority ?? []),
     impact: query.impact ?? null,
@@ -864,6 +870,10 @@ export function countThreads(store: Store, identity: Identity, query: ThreadFilt
       status: {
         any: total(statusChosen(undefined)),
         ...each(threadStatus.options, statusChosen),
+      },
+      settled: {
+        any: total({ settled: undefined }),
+        ...each(settledFilter.options, (settled) => ({ settled })),
       },
       priority: {
         any: total({ priority: undefined }),

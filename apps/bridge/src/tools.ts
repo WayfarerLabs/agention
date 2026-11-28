@@ -8,7 +8,7 @@ import type {
 import {
   branchFilter,
   cursor,
-  detailNeedsText,
+  needsText,
   includeArchivedFilter,
   invalidInputBody,
   markInput,
@@ -290,18 +290,22 @@ export function registerTools(server: McpServer, connection: Connection): void {
   tool(
     "message_send",
     "Send a message to one of this session's threads: any of Markdown text and its detail, " +
-      "references, pull requests and branches, asks, withdrawals, a topic, and replaces, an " +
-      "earlier message of yours that it replaces, which is ignored from then on. " +
-      "Each ask is numbered within the thread as it " +
-      "is written; put asks that belong together in one message, and the operator may answer " +
-      "them together or apart. Withdraw an open ask you no longer need answered, such as one " +
-      "settled elsewhere, with a withdrawal saying why; a withdrawal is never undone. Revise an " +
-      "ask by replacing its message, never by asking the same thing again beside it; a " +
-      "replacement's asks are asked again under new numbers, answered or not. A replacement is " +
-      "a whole message: send again every part you keep, the detail included, or it is gone, " +
-      "and if the message set the topic, the thread's current topic, and it carries a file of " +
-      "the message it replaces only by naming it in keep. A replacement cannot drop " +
-      "an open ask: it asks again, or withdraws by name and with a reason, each open ask of the " +
+      "references, pull requests and branches, asks, withdrawals, a topic, settles, and " +
+      "replaces, an earlier message of yours that it replaces, which is ignored from then on. " +
+      "Each ask is numbered within the thread as it is written; put asks that belong together " +
+      "in one message, and the operator may answer them together or apart. Withdraw an open " +
+      "ask you no longer need answered, such as one answered elsewhere, with a withdrawal " +
+      "saying why; a withdrawal is never undone. settles says the thread's matter is over, " +
+      "with why in the text, and is refused while any ask would stay open: withdraw yours " +
+      "first, in the same message or before. The thread is Settled until any later message, " +
+      "so never settle to drop a question that still needs the operator. Revise an ask by " +
+      "replacing its message, never by asking the same thing again beside it; a replacement's " +
+      "asks are asked again under new numbers, answered or not. A replacement is a whole " +
+      "message: send again every part you keep, the detail included, or it is gone, and if " +
+      "the message set the topic, the thread's current topic, and it carries a file of the " +
+      "message it replaces only by naming it in keep. A replacement settles only if it says " +
+      "so; say so again only while the matter is still over. A replacement cannot drop an " +
+      "open ask: it asks again, or withdraws by name and with a reason, each open ask of the " +
       "message it replaces, and it withdraws again every ask that message withdrew. " +
       "seen_through is the latest message sequence you have read: if others landed since, the " +
       "message fails as stale and lists what you missed, so read it and decide again. " +
@@ -310,7 +314,7 @@ export function registerTools(server: McpServer, connection: Connection): void {
     messageFields
       .omit({ answers: true })
       .extend({ thread, ...writeStatusFields })
-      .superRefine(detailNeedsText)
+      .superRefine(needsText)
       .superRefine(needsAPart)
       .superRefine(outcomeGoesWithStopped),
     ({ thread: number, ...body }, signal) =>
@@ -323,22 +327,23 @@ export function registerTools(server: McpServer, connection: Connection): void {
 
   tool(
     "thread_get",
-    "Read one of this session's threads: its topic, status and open asks, a page of its " +
-      "messages after after, both parties' read cursors and your own marks. A message's text " +
-      "and detail are Markdown. Each message says whether it is live and what replaced it; " +
-      "each of its asks its number and whether it is open, with its live answer or its " +
-      "withdrawal; each of its answers the number and question of the ask it answers, and " +
-      "whether that ask is still live; each of its withdrawals the ask it withdrew and why. An " +
-      "answer says whether the operator declined, which suggested answers they picked, with " +
-      "their labels, and in text their own words on the ask, part of the answer: notes beside " +
-      "the picks, or the whole answer when nothing is picked; the text and detail of the " +
-      "message carrying it are any additional information. A message lists the files it " +
+    "Read one of this session's threads: its topic, status and open asks, who settled it " +
+      "while it is Settled, in settled_by, a page of its messages after after, both parties' " +
+      "read cursors and your own marks. A message's text and detail are Markdown. Each " +
+      "message says whether it is live and what replaced it, and settles when it settles the " +
+      "thread; each of its asks its number and whether it is open, with its live answer or " +
+      "its withdrawal; each of its answers the number and question of the ask it answers, and " +
+      "whether that ask is still live; each of its withdrawals the ask it withdrew and why. " +
+      "An answer says whether the operator declined, which suggested answers they picked, " +
+      "with their labels, and in text their own words on the ask, part of the answer: notes " +
+      "beside the picks, or the whole answer when nothing is picked; the text and detail of " +
+      "the message carrying it are any additional information. A message lists the files it " +
       "carries in attachments, which file_get fetches, and the pull requests and branches it " +
       "names. pull_requests and branches roll up those the thread's live messages name, each " +
-      "once. More messages follow while the last one's seq is below the thread's " +
-      "last_seq. A result too long to return first leaves out that roll-up, naming it in " +
-      "omitted, which fewer messages bring back unless the roll-up alone is too long (the " +
-      "messages' own lists still name its entries), and then comes back with fewer messages; " +
+      "once. More messages follow while the last one's seq is below the thread's last_seq. A " +
+      "result too long to return first leaves out that roll-up, naming it in omitted, which " +
+      "fewer messages bring back unless the roll-up alone is too long (the messages' own " +
+      "lists still name its entries), and then comes back with fewer messages; " +
       tooLongText,
     z.object({
       thread,
@@ -362,17 +367,18 @@ export function registerTools(server: McpServer, connection: Connection): void {
     "List this session's threads you have not archived, your own new ones included, or with " +
       "include_archived the ones you archived too. Filters you turn on combine: search finds " +
       "titles, status keeps threads of one status, unread those with messages you have not " +
-      "read, topic those on a topic, and pull_request and branch those whose live messages name " +
-      "it, its repository matched ignoring case: list them whenever a pull request moves, to " +
-      "bring each up to date. Messages you archived never count as unread. Threads with " +
-      "open asks come first, most pressing first; the rest follow by latest message. Each " +
-      "summary gives how far you have read as read_through, counts the messages after it you " +
-      "have neither read nor archived as unread, says whether you archived it, gives its " +
-      "status, with the latest withdrawal while it is withdrawn, rolls up the thread's open " +
-      "asks, listing the most pressing, and in links counts the pull requests and branches " +
-      "its live messages name, giving the one when there is only one; summaries carry no " +
-      "Markdown, so read a thread with thread_get after its read_through. Continue with " +
-      "cursor set to next. A result too long to return comes back as a smaller page; " +
+      "read, topic those on a topic, and pull_request and branch those whose live messages " +
+      "name it, its repository matched ignoring case: list them whenever a pull request " +
+      "moves, to bring each up to date. Messages you archived never count as unread. Threads " +
+      "with open asks come first, most pressing first; the rest follow by latest message. " +
+      "Each summary gives how far you have read as read_through, counts the messages after it " +
+      "you have neither read nor archived as unread, says whether you archived it, gives its " +
+      "status, with the latest withdrawal while it is withdrawn, names in settled_by who " +
+      "settled it while it is Settled, rolls up the thread's open asks, listing the most " +
+      "pressing, and in links counts the pull requests and branches its live messages name, " +
+      "giving the one when there is only one; summaries carry no Markdown, so read a thread " +
+      "with thread_get after its read_through. Continue with cursor set to next. A result too " +
+      "long to return comes back as a smaller page; " +
       tooLongText,
     z.object({
       include_archived: includeArchivedFilter,

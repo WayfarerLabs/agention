@@ -36,6 +36,8 @@ const frozen = [
   // 13, notifications: saved views that notify, the starting view, devices,
   // the notified mark and the push key.
   "6134294d0cb9659e8681219e44023e5de4baf275e9eb32c7cc71e05d1d66c345",
+  // 14, messages that settle their thread.
+  "d185ca9425557a32af92c492a90b51a4bd7ca93d7abd2718b7861f8acc460994",
 ];
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");

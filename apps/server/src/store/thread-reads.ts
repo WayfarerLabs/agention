@@ -24,7 +24,7 @@ import {
 import type { Database } from "../database/database.ts";
 import { readAttachments } from "./attachments.ts";
 import { readLinks, summaryLinksFor } from "./code-links.ts";
-import { authorOf } from "./directory.ts";
+import { authorFrom, authorOf } from "./directory.ts";
 import { seenStep } from "./presence.ts";
 import type { Store } from "./store.ts";
 
@@ -100,7 +100,9 @@ export function quietOf(sessions: string): string {
 // withdraws: open while any is open; otherwise withdrawn when every one is
 // withdrawn, answered when there are any, and none when there are none)
 // with, while withdrawn, the latest live withdrawal, the first of its
-// message's, its session's presence and the state and outcome it last
+// message's, whether it is Settled, since its latest message, which is always
+// live, settles it, with that message's author (settler_*, absent unless
+// Settled), its session's presence and the state and outcome it last
 // reported, whether the other party has not read a live message of the
 // viewer's, and whether the thread is stranded: so, while the session is
 // quiet, has no active credential or has stopped; and the operator's group
@@ -117,6 +119,8 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
           AS other_actor_id,
         t.audience_actor_id = :viewer AS audience,
         latest.created_at AS updated_at, latest.session_pos AS latest_pos,
+        latest.settles AS settled, settler_person.name AS settler_person,
+        settler_agent.name AS settler_agent, settler_session.name AS settler_session,
         COALESCE(mark.read_seq, 0) AS read_seq,
         COALESCE(mark.archived_seq, 0) AS archived_seq,
         EXISTS (
@@ -130,6 +134,10 @@ export function threadsSeen(scope: string, lead: Lead = mostPressing): string {
       JOIN sessions s ON s.id = t.session_id
       JOIN agents g ON g.id = s.agent_id
       JOIN messages latest ON latest.thread_id = t.id AND latest.seq = t.last_seq
+      LEFT JOIN actors settler ON latest.settles AND settler.id = latest.actor_id
+      LEFT JOIN people settler_person ON settler_person.id = settler.person_id
+      LEFT JOIN sessions settler_session ON settler_session.id = settler.session_id
+      LEFT JOIN agents settler_agent ON settler_agent.id = settler_session.agent_id
       LEFT JOIN thread_marks mark ON mark.actor_id = :viewer AND mark.thread_id = t.id
       LEFT JOIN session_group_members member ON member.session_id = t.session_id
       LEFT JOIN session_groups grouped ON grouped.id = member.group_id
@@ -254,6 +262,10 @@ export interface ThreadRow {
   audience: number;
   updated_at: number;
   latest_pos: number;
+  settled: number;
+  settler_person: string | null;
+  settler_agent: string | null;
+  settler_session: string | null;
   read_seq: number;
   archived_seq: number;
   credential_active: number;
@@ -348,6 +360,15 @@ export function toThreadSummary(row: ThreadRow, now: number, links: SummaryLinks
       ? {}
       : { withdrawal: JSON.parse(row.latest_withdrawal) as Withdrawal & { seq: number } }),
     links,
+    ...(row.settled === 1
+      ? {
+          settled_by: authorFrom({
+            person: row.settler_person,
+            agent: row.settler_agent,
+            session: row.settler_session,
+          }),
+        }
+      : {}),
     credential_active: row.credential_active === 1,
     ...(row.audience === 1
       ? {
@@ -429,6 +450,7 @@ interface MessageRow {
   message_references: string | null;
   replaces_seq: number | null;
   topic: string | null;
+  settles: number;
   live: number;
   replaced_by: number | null;
 }
@@ -530,7 +552,8 @@ function groupBySeq<T extends { seq: number }>(rows: T[]): Map<number, T[]> {
 }
 
 // readMessages reads up to limit messages after the given sequence, in order,
-// as they read now: whether each is live and what replaced it; its pull
+// as they read now: whether each is live and what replaced it, and whether it
+// settles the thread; its pull
 // requests and branches, and its files, in the order it gave them, each file
 // marked when its contents are gone; each ask's
 // number, whether it is open, and its live answer or live withdrawal; each
@@ -547,7 +570,7 @@ export function readMessages(
   const rows = db
     .prepare(
       `SELECT m.seq, m.actor_id, m.created_at, m.text, m.detail, m.message_references,
-         m.replaces_seq, m.topic,
+         m.replaces_seq, m.topic, m.settles,
          EXISTS (SELECT 1 FROM live_messages l
            WHERE l.thread_id = m.thread_id AND l.seq = m.seq) AS live,
          (SELECT r.seq FROM messages r
@@ -630,6 +653,7 @@ export function readMessages(
       ...(withdrew === undefined
         ? {}
         : { withdrawals: withdrew.map(({ ask, reason }) => ({ ask, reason })) }),
+      ...(row.settles === 1 ? { settles: true as const } : {}),
     };
   });
 }

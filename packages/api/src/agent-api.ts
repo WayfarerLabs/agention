@@ -9,7 +9,7 @@ import { z } from "zod";
 // before a field goes missing unnoticed. Every change to the agent contract
 // bumps version by one (CONTRIBUTING.md "The agent API"); oldest moves only by
 // a maintainer's decision.
-export const agentApi = { version: 7, oldest: 1 } as const;
+export const agentApi = { version: 8, oldest: 1 } as const;
 
 // The versions that added fields to the agent's answers. An answer to a
 // request stating an older version leaves out every field added after it, so
@@ -23,6 +23,11 @@ export const codeLinksAgentApiVersion = 6;
 // The first version whose thread summaries carry links, which counts the pull
 // requests and branches the thread's live messages name.
 export const summaryLinksAgentApiVersion = 7;
+
+// The first version whose messages may settle their thread, carrying settles
+// when they do, and whose thread summaries carry settled_by while the thread
+// is Settled.
+export const settledAgentApiVersion = 8;
 
 export const agentApiHeader = "Agention-Agent-API";
 

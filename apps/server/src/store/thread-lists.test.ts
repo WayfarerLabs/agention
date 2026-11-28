@@ -905,7 +905,7 @@ describe("counts and groups", () => {
     });
     start("withdrawn", { asks: [{ question: "q", priority: "urgent" }] });
     fixture.write(agent.identity, threadTarget(agent, 6), {
-      withdrawals: [{ ask: 1, reason: "Settled elsewhere." }],
+      withdrawals: [{ ask: 1, reason: "Answered elsewhere." }],
     });
     // Unread by a session that is not quiet, so not stranded.
     start("main written to");

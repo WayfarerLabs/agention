@@ -58,6 +58,7 @@ export const emptyList: ThreadList = { threads: [], total: 0, as_of: "as-of-0" }
 // The counts of a list that holds nothing.
 export const noCounts: ThreadCounts = {
   status: { any: 0, open: 0, answered: 0, withdrawn: 0, none: 0 },
+  settled: { any: 0, only: 0, hide: 0 },
   priority: { any: 0, urgent: 0, high: 0, normal: 0, low: 0 },
   impact: { any: 0, blocking: 0, assuming: 0 },
   overdue: { any: 0, overdue: 0 },

@@ -3,6 +3,7 @@ import {
   agentApiHeader,
   agentApiVersion,
   codeLinksAgentApiVersion,
+  settledAgentApiVersion,
   summaryLinksAgentApiVersion,
 } from "@wayfarerlabs/agention-api";
 import type { MiddlewareHandler } from "hono";
@@ -68,7 +69,9 @@ type Json = Record<string, unknown>;
 // codeLinksAgentApiVersion added the pull requests and branches of a thread
 // read's messages, its roll-up of them, and those of the messages a stale
 // write missed; summaryLinksAgentApiVersion added links to the thread
-// summaries a thread read, a list, and a wait carry.
+// summaries a thread read, a list, and a wait carry; settledAgentApiVersion
+// added settles to the messages of a thread read and those a stale write
+// missed, and settled_by to the thread summaries.
 const added: { version: number; leaveOut: (answer: Json) => void }[] = [
   {
     version: codeLinksAgentApiVersion,
@@ -88,6 +91,22 @@ const added: { version: number; leaveOut: (answer: Json) => void }[] = [
       for (const each of [answer.thread, ...listOf(answer.threads)]) {
         if (isJson(each)) {
           delete each.links;
+        }
+      }
+    },
+  },
+  {
+    version: settledAgentApiVersion,
+    leaveOut: (answer) => {
+      const missed = isJson(answer.error) ? answer.error.missed : undefined;
+      for (const each of [...listOf(answer.messages), ...listOf(missed)]) {
+        if (isJson(each)) {
+          delete each.settles;
+        }
+      }
+      for (const each of [answer.thread, ...listOf(answer.threads)]) {
+        if (isJson(each)) {
+          delete each.settled_by;
         }
       }
     },

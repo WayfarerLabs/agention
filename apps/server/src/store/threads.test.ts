@@ -481,7 +481,7 @@ describe("answers", () => {
 
   it.each([
     ["revised", { asks: [{ question: "Which, then?" }], replaces: 1 }],
-    ["withdrew", { withdrawals: [{ ask: 1, reason: "Settled." }] }],
+    ["withdrew", { withdrawals: [{ ask: 1, reason: "Moot." }] }],
   ])("refuse an ask its requester %s", (_, change) => {
     asking();
     fixture.write(agent.identity, target(), change);
@@ -763,7 +763,7 @@ describe("withdrawals", () => {
     // Withdrawing every open ask by name takes a replacement without any,
     // which withdraws again the ask its message withdrew.
     fixture.write(agent.identity, target(), {
-      text: "Settled.",
+      text: "Not needed now.",
       withdrawals: [
         { ask: 2, reason },
         { ask: 3, reason },
@@ -786,14 +786,14 @@ describe("withdrawals", () => {
   it("are never undone: a replacement withdraws again every ask its message withdrew", () => {
     fixture.createThread(agent, { asks: [choice, { question: "And?" }, { question: "Or?" }] });
     fixture.write(agent.identity, target(), {
-      text: "Settled.",
+      text: "Not needed now.",
       withdrawals: [
         { ask: 1, reason: "One." },
         { ask: 2, reason: "Two." },
       ],
     });
     for (const change of [
-      { text: "Settled, edited." },
+      { text: "Not needed now, edited." },
       { withdrawals: [{ ask: 1, reason: "One." }] },
       {
         withdrawals: [
@@ -849,12 +849,12 @@ describe("withdrawals", () => {
       ).toEqual({ code: "invalid_input", field: "withdrawals" });
       fixture.write(agent.identity, target(), {
         text: "Never mind, edited.",
-        withdrawals: [{ ask: 1, reason: "Settled, put better." }],
+        withdrawals: [{ ask: 1, reason: "Moot, put better." }],
         replaces: 3,
       });
       expect(read().thread).toMatchObject({
         status: "withdrawn",
-        withdrawal: { ask: 1, reason: "Settled, put better." },
+        withdrawal: { ask: 1, reason: "Moot, put better." },
       });
     },
   );
@@ -902,7 +902,7 @@ describe("status", () => {
   it("counts the asks a replacement withdraws of its own message, withdrawn by name", () => {
     fixture.createThread(agent, { asks: [choice, { question: "And?" }] });
     fixture.write(agent.identity, target(), {
-      text: "Settled elsewhere.",
+      text: "Answered elsewhere.",
       withdrawals: [
         { ask: 1, reason: "Merged." },
         { ask: 2, reason: "Moot." },

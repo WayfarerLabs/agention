@@ -260,6 +260,38 @@ describe("the operator mount", () => {
     });
   });
 
+  it("settles a thread, and lists and counts the threads by it, as the web mount does", async () => {
+    const { secret } = await harness.createKey(["threads:read", "threads:write"]);
+    const sent = await harness.operator(secret, "POST", "/s/builder/main/threads/1/messages", {
+      request_id: "o-1",
+      seen_through: 1,
+      text: "Merged, so done.",
+      settles: true,
+    });
+    expect(codeOf(sent)).toBe("ok");
+    await harness.agent(agent, "POST", "/s/builder/main/threads", newThread("r-2"));
+    const only = await harness.operator(secret, "GET", "/threads?settled=only");
+    expect(only.body).toMatchObject({
+      threads: [{ number: 1, settled_by: { kind: "person", name: "operator" } }],
+      total: 1,
+    });
+    const hidden = await harness.operator(secret, "GET", "/threads?settled=hide");
+    expect(hidden.body).toMatchObject({ threads: [{ number: 2 }], total: 1 });
+    expect((hidden.body as { threads: object[] }).threads[0]).not.toHaveProperty("settled_by");
+    const counts = await harness.operator(secret, "GET", "/threads/counts");
+    expect(counts.body).toMatchObject({ settled: { any: 2, only: 1, hide: 1 } });
+    for (const path of ["/threads?settled=only", "/threads/counts?settled=hide"]) {
+      expect((await harness.operator(secret, "GET", path)).body).toEqual(
+        (await harness.web("GET", path)).body,
+      );
+    }
+    const refused = await harness.operator(secret, "GET", "/threads?settled=yes");
+    expect([codeOf(refused), (refused.body as ErrorBody).error.field]).toEqual([
+      "invalid_input",
+      "settled",
+    ]);
+  });
+
   it("lists and counts the threads by pull request and branch, as the web mount does", async () => {
     const { secret } = await harness.createKey(["threads:read", "threads:write"]);
     const pull = { repo: "acme/agention", number: 135 };

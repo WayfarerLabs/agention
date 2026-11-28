@@ -231,7 +231,7 @@ export const answerList = z
   .superRefine(eachAskOnce("answers an ask this message already answers"));
 
 export const withdrawalReason = singleLineText({ min: 1, max: 300 }).describe(
-  "Plain text: why the ask no longer needs an answer, such as what settled it.",
+  "Plain text: why the ask no longer needs an answer, such as what answered it elsewhere.",
 );
 
 // A withdrawal, the requester's closing of an open ask it no longer needs
@@ -272,18 +272,29 @@ const messageParts = {
   topic: topic.optional(),
 };
 
-// detailNeedsText refuses a message carrying detail without text: the detail
-// is the long form of what its text sums up, and readers see the text first.
-// It holds for every message, its thread's first included.
-export function detailNeedsText(
-  value: { text?: string | undefined; detail?: string | undefined },
+// needsText refuses a message carrying detail or settling its thread without
+// text: the detail is the long form of what its text sums up, and readers see
+// the text first; a settling message's text is why the thread's matter is
+// over. It holds for every message, its thread's first included.
+export function needsText(
+  value: { text?: string | undefined; detail?: string | undefined; settles?: true | undefined },
   context: z.RefinementCtx,
 ): void {
-  if (value.detail !== undefined && value.text === undefined) {
+  if (value.text !== undefined) {
+    return;
+  }
+  if (value.detail !== undefined) {
     context.addIssue({
       code: "custom",
       path: ["detail"],
       message: "needs text beside it, summing up what the detail says",
+    });
+  }
+  if (value.settles !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["settles"],
+      message: "needs text beside it, saying why the thread's matter is over",
     });
   }
 }
@@ -297,7 +308,7 @@ export const threadCreateInput = z
     ...messageParts,
     ...writeStatusFields,
   })
-  .superRefine(detailNeedsText)
+  .superRefine(needsText)
   .superRefine(outcomeGoesWithStopped);
 export type ThreadCreateInput = z.infer<typeof threadCreateInput>;
 
@@ -318,15 +329,25 @@ export const threadStartInput = z.object({
 export type ThreadStartInput = z.infer<typeof threadStartInput>;
 
 // The fields of a message as both mounts take them: the parts any message may
-// carry, the audience's answers and the requester's withdrawals, and what it
+// carry, the audience's answers and the requester's withdrawals, whether it
+// settles the thread, which a thread's first message never does, and what it
 // replaces. message_send's tool takes them without the answers, and
-// messageSendInput adds the rules they share, detailNeedsText and needsAPart.
+// messageSendInput adds the rules they share, needsText and needsAPart.
 export const messageFields = z.object({
   request_id: requestId,
   seen_through: sequence.describe("The latest message sequence the writer has seen."),
   ...messageParts,
   answers: answerList.optional(),
   withdrawals: withdrawalList.optional(),
+  settles: z
+    .literal(true)
+    .optional()
+    .describe(
+      "Settle the thread: its matter is over, and this message's text says why. The thread " +
+        "is Settled until a later message, any participant's, ends it. Refused without text, " +
+        "and while any ask of the thread would stay open after this message: resolve them " +
+        "first, in this message or before.",
+    ),
   replaces: sequence
     .optional()
     .describe(
@@ -334,10 +355,11 @@ export const messageFields = z.object({
     ),
 });
 
-// What counts as a part of a message, by field, with the name needsAPart
-// gives it: every field of messageFields but request_id, seen_through and
-// replaces, and detail aside, since it needs text beside it. It is keyed by
-// those fields, so a new one fails to compile until it says whether it counts.
+// What counts as a part of a message, by field, with the name needsAPart gives
+// it: every field of messageFields but request_id, seen_through and replaces,
+// and detail and settles aside, since each needs text beside it. It is keyed
+// by those fields, so a new one fails to compile until it says whether it
+// counts.
 const partNames = {
   text: "text",
   detail: null,
@@ -349,6 +371,7 @@ const partNames = {
   answers: "answers",
   withdrawals: "withdrawals",
   topic: "a topic",
+  settles: null,
 } as const satisfies Record<
   Exclude<keyof typeof messageFields.shape, "request_id" | "seen_through" | "replaces">,
   string | null
@@ -381,7 +404,7 @@ export function needsAPart(
   }
 }
 
-export const messageSendInput = messageFields.superRefine(detailNeedsText).superRefine(needsAPart);
+export const messageSendInput = messageFields.superRefine(needsText).superRefine(needsAPart);
 export type MessageSendInput = z.infer<typeof messageSendInput>;
 // A message as a client writes it, before the schema applies its defaults.
 export type MessageSendRequest = z.input<typeof messageSendInput>;
@@ -391,7 +414,7 @@ export type MessageSendRequest = z.input<typeof messageSendInput>;
 // only a session reports, so the operator's mounts have no such fields.
 export const agentMessageSendInput = messageFields
   .extend(writeStatusFields)
-  .superRefine(detailNeedsText)
+  .superRefine(needsText)
   .superRefine(needsAPart)
   .superRefine(outcomeGoesWithStopped);
 export type AgentMessageSendInput = z.infer<typeof agentMessageSendInput>;
@@ -467,7 +490,8 @@ export type AnswerRead = z.infer<typeof answerRead>;
 // A message as it reads now. live says no later message replaced it, and
 // replaced_by names the one that did. Its pull requests, branches and
 // attachments come in the order it gave them; its asks, answers and
-// withdrawals in ask number order.
+// withdrawals in ask number order. settles is present when it settles the
+// thread.
 export const message = z.object({
   seq: sequence,
   author,
@@ -485,6 +509,7 @@ export const message = z.object({
   asks: z.array(askRead).optional(),
   answers: z.array(answerRead).optional(),
   withdrawals: z.array(withdrawal).optional(),
+  settles: z.literal(true).optional().describe("Present when this message settles its thread."),
 });
 export type Message = z.infer<typeof message>;
 
@@ -548,7 +573,9 @@ export type ThreadStatus = z.infer<typeof threadStatus>;
 // live message by the audience that the session has not read while the
 // session is quiet, has no active credential or has stopped. links counts the
 // pull requests and branches its live messages name, giving the one entry when
-// there is exactly one.
+// there is exactly one. settled_by, present only while the thread is Settled,
+// names who wrote its latest message, which settles it, so last_seq and
+// updated_at are that message's sequence and time.
 export const threadSummary = z.object({
   agent: name,
   session: name,
@@ -566,6 +593,12 @@ export const threadSummary = z.object({
   status: threadStatus,
   withdrawal: withdrawal.extend({ seq: sequence }).optional(),
   links: summaryLinks,
+  settled_by: author
+    .optional()
+    .describe(
+      "Who settled the thread, present only while it is Settled: the author of its latest " +
+        "message, which settles it, so its time and sequence are updated_at and last_seq.",
+    ),
   credential_active: z.boolean(),
   presence: threadPresence.optional(),
   stranded: z.boolean().optional(),

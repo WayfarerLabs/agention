@@ -679,6 +679,7 @@ describe("a row's due mark", () => {
 // a test can tell which is shown where.
 const counts: ThreadCounts = {
   status: { any: 30, open: 9, answered: 34, withdrawn: 35, none: 36 },
+  settled: { any: 45, only: 46, hide: 47 },
   priority: { any: 29, urgent: 6, high: 7, normal: 8, low: 10 },
   impact: { any: 28, blocking: 5, assuming: 4 },
   overdue: { any: 27, overdue: 3 },
