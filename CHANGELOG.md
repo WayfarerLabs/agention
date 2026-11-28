@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.8.0](https://github.com/WayfarerLabs/agention/compare/v0.7.0...v0.8.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* On operator API v1, the thread list's `priority` filter, on listing threads, its counts, a thread's neighbors, and actions on matching threads, takes a list of priorities, each matched exactly, instead of one meaning that priority or higher; a single value reads as a list of one, so `priority=high` now keeps only high asks, and `priority=urgent&priority=high` keeps what it kept before. Web UI addresses change meaning likewise: a bookmarked or shared `/?priority=normal` now keeps normal asks only.
+
+### Features
+
+* **bridge:** name the session from AGENTION_AGENT and AGENTION_SESSION ([125aa37](https://github.com/WayfarerLabs/agention/commit/125aa37ba6144a9bff56bc4886babda740a2ce26))
+* let the thread list's priority filter take any set of priorities ([7497a7a](https://github.com/WayfarerLabs/agention/commit/7497a7a5dd6df2f25c7f6ef8bf038f246774f70a))
+* **server:** deliver the audit log to standard output and files ([f791650](https://github.com/WayfarerLabs/agention/commit/f7916504566970009f69e19d01487b98b790aa75))
+* **server:** keep the operator's saved views ([b798eed](https://github.com/WayfarerLabs/agention/commit/b798eed57a7be7802c7c61f66509a52b44481376))
+* **server:** record every write in the audit log ([6867fe7](https://github.com/WayfarerLabs/agention/commit/6867fe7cf519a5e779a833a5185d5bc9cdc7af29))
+* **web:** a copy button on every code block ([606f76c](https://github.com/WayfarerLabs/agention/commit/606f76cf1d9ea3d9246206fcddcba61a5bfccd37))
+* **web:** link to a session's own page from the places that name it ([3e7b287](https://github.com/WayfarerLabs/agention/commit/3e7b287a41e3acf9faf36e160c080ddad5f8fa8a)), closes [#178](https://github.com/WayfarerLabs/agention/issues/178)
+* **web:** make the web UI installable as an app ([f40cdb6](https://github.com/WayfarerLabs/agention/commit/f40cdb6b0bf3d65491a3f40e89ffc2967c2728f0))
+* **web:** open saved views from the thread list's head, g v and Settings ([c254240](https://github.com/WayfarerLabs/agention/commit/c254240dbd2d7b32e2625dd416c4b0daaea71e4f))
+* **web:** show the Sessions view's rows and a session side by side ([d787082](https://github.com/WayfarerLabs/agention/commit/d787082e848be128e1d71445f38690efb91336e9)), closes [#161](https://github.com/WayfarerLabs/agention/issues/161) [#183](https://github.com/WayfarerLabs/agention/issues/183)
+
+
+### Bug Fixes
+
+* **api:** refuse thread number 0, which no thread has ([584ef8f](https://github.com/WayfarerLabs/agention/commit/584ef8f1e9aa1ba311db1ad6152d65f72f2f3acc))
+* **bridge:** make no request for a call already cancelled ([c354eaf](https://github.com/WayfarerLabs/agention/commit/c354eaf6c2f5d34de03a688b88982e1be54f1c6b)), closes [#182](https://github.com/WayfarerLabs/agention/issues/182)
+* say once, and without a wrong plural, how long to wait when refused ([4827cad](https://github.com/WayfarerLabs/agention/commit/4827cadc7c9d05763913246aee364b15f12f05a6))
+* say what each API key scope grants in Settings and the API reference ([0fc3252](https://github.com/WayfarerLabs/agention/commit/0fc3252fab8164260d83345ee03666287b5d6fb9)), closes [#195](https://github.com/WayfarerLabs/agention/issues/195)
+* **server:** compress the web UI's files as built and cache them for good ([f5d5756](https://github.com/WayfarerLabs/agention/commit/f5d5756d7e2899895a5e145dae8fdb2a671403e7))
+* **web:** grant a new session under its name as it now stands ([08981e3](https://github.com/WayfarerLabs/agention/commit/08981e3796316305c577d4ca05c7797b472d5933))
+* **web:** keep a focused row clear of the group header stuck above it ([6472fa1](https://github.com/WayfarerLabs/agention/commit/6472fa109131e5a065cecf204d3960e1c46440a0)), closes [#176](https://github.com/WayfarerLabs/agention/issues/176)
+* **web:** keep Zod from probing for eval under the content security policy ([7fc9073](https://github.com/WayfarerLabs/agention/commit/7fc9073cee36400e60eec5d80e5810133ed00298))
+* **web:** match a saved view's pull requests and branches by their keys ([3ac8892](https://github.com/WayfarerLabs/agention/commit/3ac889214a9f9b187d085aeae1fbb5a93e10a57e))
+* **web:** open only the focused row with the thread list's o ([a99d197](https://github.com/WayfarerLabs/agention/commit/a99d197fb5b6b163d76bf3765fbe06ac1f4ea824)), closes [#177](https://github.com/WayfarerLabs/agention/issues/177)
+* **web:** put shortcuts in place in the commit that shows a page ([8ffffaf](https://github.com/WayfarerLabs/agention/commit/8ffffafa040646fb800df6db72c2400705aa13a6)), closes [#203](https://github.com/WayfarerLabs/agention/issues/203)
+* **web:** ring the whole thread row when its link has keyboard focus ([e0ae921](https://github.com/WayfarerLabs/agention/commit/e0ae92108c7617462211aeddc90d3ff66a4d941d)), closes [#174](https://github.com/WayfarerLabs/agention/issues/174)
+* **web:** show only name refusals by the approval's name fields ([c286187](https://github.com/WayfarerLabs/agention/commit/c286187bf681407e7355b66dadeae90be7060007))
+
 ## [0.7.0](https://github.com/WayfarerLabs/agention/compare/v0.6.0...v0.7.0) (2026-11-25)
 
 
