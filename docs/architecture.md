@@ -511,12 +511,12 @@ these that holds:
 
 It is the same whoever views it.
 
-A thread is Settled while its latest message settles it. That message is always live, since only a
-later message replaces another, so any later message ends Settled: a reply from either party, a
-replacement that does not settle again, or a retraction. The summary's `settled_by` names the
-settling message's author while the thread is Settled, read from the latest message the summary's
-query already joins, and is absent otherwise; its sequence and time are the summary's `last_seq` and
-`updated_at`. Settling reads and archives nothing for anyone.
+A thread is Settled while its latest message settles it ([ADR 0009](adrs/0009-settled-threads.md)).
+That message is always live, since only a later message replaces another, so any later message ends
+Settled: a reply from either party, a replacement that does not settle again, or a retraction. The
+summary's `settled_by` names the settling message's author while the thread is Settled, read from
+the latest message the summary's query already joins, and is absent otherwise; its sequence and time
+are the summary's `last_seq` and `updated_at`. Settling reads and archives nothing for anyone.
 
 A thread's summary lists at most 50 of its open asks, the most pressing, beside their count and the
 earliest.

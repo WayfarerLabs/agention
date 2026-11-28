@@ -22,7 +22,9 @@ the server delivers that log to the sinks the operator configures, and removes i
 their retention. Its "No push" is superseded for the operator by
 [ADR 0008](0008-web-push-to-the-operator.md): the server notifies the operator's devices through Web
 Push to the web UI when a saved view that notifies matches an agent's message; it still reaches an
-agent only when the agent checks.
+agent only when the agent checks. Its "A thread's status only rolls up its asks and is no lifecycle"
+is narrowed by [ADR 0009](0009-settled-threads.md): a thread is also Settled while its latest
+message, either party's, settles it, a claim any later message ends.
 
 ## Context
 
@@ -342,7 +344,9 @@ These are deliberate limits, not gaps to fill later without a new decision:
   what is asked with what is only said. An open ask states what is asked; "blocked on you", on a
   thread or a session, read from open asks, is the only turn-like signal. A thread's status only
   rolls up its asks and is no lifecycle: each party archives the thread when it needs nothing more
-  from them.
+  from them. (Narrowed by [ADR 0009](0009-settled-threads.md): a thread is also Settled while its
+  latest message settles it, a claim derived from the messages that any later message ends, with
+  archive still each party's own.)
 - **No server action on deadlines.** An answer-by time and the requester's stated fallback are shown
   to the audience, but the server never acts on them. What a missed deadline means is entirely the
   requester's choice.

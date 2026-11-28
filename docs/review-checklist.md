@@ -95,7 +95,9 @@ thread the operator starts on a session keeps the session its requester, so it c
 topic from them. Look for role checks keyed on anything but the roles stored on the thread, an ask
 or answer mutated in place, a withdrawal undone, a derived state that counts a replaced message, and
 a derived next action, a per-kind lifecycle, or items that open and close creeping back in (ADR 0001
-"Not doing" and "Alternatives considered").
+"Not doing" and "Alternatives considered"); Settled is none of them, a claim read from the latest
+message that any later message ends ([ADR 0009](adrs/0009-settled-threads.md)), so look too for it
+gaining stored state, refusing a write, or surviving a later message.
 
 ## A6. Nothing built beyond the trust model
 
