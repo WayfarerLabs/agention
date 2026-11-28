@@ -395,7 +395,7 @@
                           },
                           "number": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "title": {
@@ -1495,7 +1495,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -1798,7 +1798,7 @@
                         },
                         "number": {
                           "type": "integer",
-                          "minimum": 0,
+                          "minimum": 1,
                           "maximum": 9007199254740991
                         },
                         "title": {
@@ -1940,7 +1940,7 @@
                         },
                         "number": {
                           "type": "integer",
-                          "minimum": 0,
+                          "minimum": 1,
                           "maximum": 9007199254740991
                         },
                         "title": {
@@ -2207,7 +2207,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -2375,7 +2375,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -2565,7 +2565,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -2655,7 +2655,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -2745,7 +2745,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -3018,7 +3018,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -3157,7 +3157,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -3430,7 +3430,7 @@
                         },
                         "thread": {
                           "type": "integer",
-                          "minimum": 0,
+                          "minimum": 1,
                           "maximum": 9007199254740991
                         },
                         "through": {
@@ -3478,7 +3478,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "cursors": {
@@ -3545,7 +3545,7 @@
                         },
                         "thread": {
                           "type": "integer",
-                          "minimum": 0,
+                          "minimum": 1,
                           "maximum": 9007199254740991
                         },
                         "through": {
@@ -3593,7 +3593,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "marks": {
@@ -3623,7 +3623,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "open_asks": {
@@ -3706,7 +3706,7 @@
                         },
                         "thread": {
                           "type": "integer",
-                          "minimum": 0,
+                          "minimum": 1,
                           "maximum": 9007199254740991
                         },
                         "through": {
@@ -3756,7 +3756,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           }
                         },
@@ -3783,7 +3783,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "asks": {
@@ -3819,7 +3819,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "open_asks": {
@@ -4079,7 +4079,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           }
                         },
@@ -4106,7 +4106,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "asks": {
@@ -4142,7 +4142,7 @@
                           },
                           "thread": {
                             "type": "integer",
-                            "minimum": 0,
+                            "minimum": 1,
                             "maximum": 9007199254740991
                           },
                           "open_asks": {
@@ -6722,7 +6722,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -6896,7 +6896,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -7105,7 +7105,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -7201,7 +7201,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -7297,7 +7297,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           }
@@ -7588,7 +7588,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -7733,7 +7733,7 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -8644,7 +8644,7 @@
           },
           "thread": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "maximum": 9007199254740991,
             "description": "A thread of the same session, by its number."
           }
@@ -9191,7 +9191,7 @@
           },
           "number": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "maximum": 9007199254740991
           },
           "title": {
@@ -9533,7 +9533,7 @@
         "properties": {
           "number": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "maximum": 9007199254740991
           },
           "seq": {
