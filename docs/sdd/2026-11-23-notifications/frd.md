@@ -210,3 +210,13 @@ answer its own thread too." The operator picked "Saved views (#170)", "Notificat
     rate cap for now?" The operator picked "No cap for now (Recommended)" ("One per thread until
     read, plus each agent's write rate; revisit with real use."). So nothing caps how often
     notifications are sent beyond a thread notifying once until read and each agent's write rate.
+13. Device acceptance (ask 26): answered in Agention on 2026-11-27, local time (thread 19, message
+    35, 2026-11-28T06:32Z), to the question in message 34: "Does Chrome on Windows turn
+    notifications on, and do you accept notifications (#201) with Edge on this machine as a
+    Windows-side gap?" The operator picked "Chrome works; accept". Before it, Android passed (ask
+    22, message 29: "Yes, both" to "Did the Android notification show, and did tapping it open the
+    thread?"). Edge on the operator's Windows machine could not turn notifications on: Windows' own
+    push client refused Edge a channel before any request left the machine (`edge://push-internals`:
+    "Failed to create push channel manager: 13021"), after Edge had read the server's key. So
+    notifications are accepted on Android and on Chrome on Windows, with Edge on that machine named
+    as a Windows-side gap.

@@ -156,6 +156,9 @@ Collateral:
       (agention#201).
 - [x] Live testing guide: how the operator checks delivery on a device, and among the saved views
       operations, a key's Replace with search on ending a view's notifying (agention#201).
+- [x] The operator's device acceptance: a blocking ask received and its thread opened on Android,
+      Chrome on Windows turned on and its test push accepted, and Edge on the operator's Windows
+      machine named as a Windows-side gap, recorded as ruling 13 (agention#201).
 
 **Done when:** the FRD's definition of done holds: the operator receives a blocking ask on their
 Android phone, installed and with its screen off for a while, and opens the thread from it, and the
