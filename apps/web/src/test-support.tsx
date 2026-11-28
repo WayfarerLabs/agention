@@ -16,8 +16,8 @@ import {
   type ThreadList,
   type ThreadSummary,
 } from "@wayfarerlabs/agention-api";
-import { act, render } from "@testing-library/react";
-import { vi } from "vitest";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { expect, vi } from "vitest";
 import { App } from "./App.tsx";
 
 export interface Call {
@@ -312,6 +312,17 @@ export function stubWidth(wide = true): (toWide: boolean) => void {
 export function renderAt(path: string, state: unknown = null, { strict = false } = {}) {
   window.history.replaceState(state, "", path);
   return render(<App />, { reactStrictMode: strict });
+}
+
+// clickFold clicks a fold's header, then waits for the header to show the
+// fold flipped. A view subscribes to the store holding its folds (device.ts)
+// in a passive effect, after its render commits; a click landing between the
+// two, as one can just after a find resolves, takes effect only once the view
+// subscribes, not as the click returns.
+export async function clickFold(header: HTMLElement) {
+  const expanded = header.getAttribute("aria-expanded");
+  fireEvent.click(header);
+  await waitFor(() => expect(header.getAttribute("aria-expanded")).not.toBe(expanded));
 }
 
 const time = "2026-10-27T12:00:00.000Z";
