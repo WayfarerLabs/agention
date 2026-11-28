@@ -138,9 +138,11 @@ changes, and withdraw one it settles.
 - **Never block your work, at your terminal or on Agention.** Ask as soon as you can see the
   question coming and the operator can answer it, and carry on with whatever does not depend on the
   answer. `impact: blocking` means the work the ask is for stops until it is answered, not that you
-  do, and it shows the operator that something waits on them. A question that must wait for
-  something else first, such as a release or a merge, goes in a message saying what you will need
-  and when, and becomes an ask once the operator can act on it.
+  do, and it shows the operator that something waits on them. Your asks' impact and priority may
+  also notify the operator's phone and other devices, so set them honestly: never `blocking` or
+  `urgent` to get attention sooner. A question that must wait for something else first, such as a
+  release or a merge, goes in a message saying what you will need and when, and becomes an ask once
+  the operator can act on it.
 - **Every message stands on its own.** The operator should be able to answer from Agention alone,
   often on a phone, without your terminal or any other source: `text` says what the matter is and
   what you need, and `detail` carries everything else, as the tools describe, with a diagram where a

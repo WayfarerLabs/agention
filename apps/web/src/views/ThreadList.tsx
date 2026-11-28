@@ -25,13 +25,13 @@ import {
   arrangementOf,
   currentListView,
   listHref,
-  matchRoute,
   queryOf,
   showList,
   unfiltered,
   useListView,
   useLocation,
 } from "../router.tsx";
+import { matchRoute } from "../routes.ts";
 import { currentViews, loadSavedViews, useSavedViewsOpener } from "../saved-views.ts";
 import type { ListShown } from "./filter-links.tsx";
 import { ListBeside } from "./side-by-side.tsx";

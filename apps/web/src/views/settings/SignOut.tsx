@@ -3,12 +3,13 @@ import { request } from "../../api.ts";
 import { Failure } from "../../components.tsx";
 import { useAction } from "../../data.ts";
 import { forgetDrafts } from "../../device.ts";
+import { forgetNotificationsHere } from "../../push/subscription.ts";
 import { navigate } from "../../router.tsx";
 import { useSession } from "../../session.tsx";
 
 // SignOutSection ends this browser's session and goes to the sign-in page,
 // forgetting the drafts the browser kept, since another person may use it
-// next.
+// next, and ending its notifications, which the server's sign-out ends too.
 export function SignOutSection() {
   const session = useSession();
   const action = useAction();
@@ -22,6 +23,7 @@ export function SignOutSection() {
       release();
     } else {
       forgetDrafts();
+      forgetNotificationsHere();
       navigate("/sign-in", { replace: true });
       session.update(state);
     }

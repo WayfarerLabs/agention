@@ -30,7 +30,7 @@ import { storeName } from "./server-name.ts";
 import { markSeen } from "./presence.ts";
 import { approveRegistration, submitRegistration } from "./registrations.ts";
 import { updateSession } from "./sessions.ts";
-import { createStore, type Store } from "./store.ts";
+import { type AgentMessage, createStore, type Store } from "./store.ts";
 import {
   createThread,
   getThread,
@@ -109,13 +109,24 @@ export class Fixture {
   // options.quietAfter is how long a session goes unseen before it is quiet,
   // by default the server's own. The server's name is stored, as the first
   // start to serve stores it, Agention unless options.name gives another.
-  constructor(options: { quietAfter?: number; name?: string } = {}) {
+  // options.afterAgentMessage hears each agent's message once it commits, as
+  // agention serve's notification check does.
+  constructor(
+    options: {
+      quietAfter?: number;
+      name?: string;
+      afterAgentMessage?: (message: AgentMessage) => void;
+    } = {},
+  ) {
     this.root = realpathSync(mkdtempSync(path.join(tmpdir(), "agention-store-")));
     this.db = openTestDatabase(path.join(this.root, "agention.db"));
     storeName(this.db, options.name ?? "Agention");
     this.store = createStore(this.db, {
       clock: () => this.now,
       ...(options.quietAfter === undefined ? {} : { quietAfter: options.quietAfter }),
+      ...(options.afterAgentMessage === undefined
+        ? {}
+        : { afterAgentMessage: options.afterAgentMessage }),
     });
     this.browserSession = randomBytes(32);
     this.passkeyId = this.db.transaction(() => {

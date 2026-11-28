@@ -1,4 +1,11 @@
-import { apiKeyId, invalidInputBody, passkeyId, queryNumber } from "@wayfarerlabs/agention-api";
+import {
+  apiKeyId,
+  invalidInputBody,
+  passkeyId,
+  pushDeviceId,
+  queryNumber,
+  savedViewId,
+} from "@wayfarerlabs/agention-api";
 import type { Context } from "hono";
 import { ApiError } from "../errors.ts";
 
@@ -68,4 +75,12 @@ export function passkeyOf(c: Context): number {
 
 export function apiKeyOf(c: Context): number {
   return parse(queryNumber(apiKeyId), c.req.param("id"), "id");
+}
+
+export function pushDeviceOf(c: Context): number {
+  return parse(queryNumber(pushDeviceId), c.req.param("id"), "id");
+}
+
+export function savedViewOf(c: Context): number {
+  return parse(queryNumber(savedViewId), c.req.param("id"), "id");
 }

@@ -145,6 +145,47 @@ device, and involves no server.
   send themselves; nothing is sent without them, so a provider can put words in a draft but never in
   a thread.
 
+### Notifications
+
+<!-- cspell:ignore VAPID -->
+
+Notifications are off until the operator turns them on for a device, from Settings on that device.
+The server then sends them through Web Push to the web UI, when an agent's message leaves a thread
+that a saved view which notifies keeps, once until the operator reads or archives the thread.
+
+- **What reaches a push service.** The push service the device's browser chose (Google's, Mozilla's,
+  Apple's or Microsoft's) sees the address it issued, the server's public push key and a token
+  signed with it that names the project, not the operator or the server's host, a one-day lifetime,
+  high urgency, and a ciphertext of one fixed size, encrypted to the device's keys. It sees no
+  thread's title, agent, session or number, and nothing that links two notifications of one thread.
+  No account with any push service is needed.
+- **What reaches a device.** The thread's title and why it needs the operator, such as "Blocking
+  ask", on its lock screen; never a message's text. Opening it opens the thread in the web UI,
+  signed in as usual. The service worker builds the thread's route from its identifiers and never
+  takes a URL from a notification.
+- **Outbound limits.** The server sends only to the known push services' hosts, matched by name at a
+  dot boundary and never resolved by its own code, over HTTPS on the default port, with no user
+  information, following no redirect, within 10 seconds. It checks an address when a device
+  registers and again before each send. A push service answering that a subscription is gone removes
+  it. A new browser's push service needs its host added to the server's list.
+- **Keys.** The server's push signing key (a P-256 key, VAPID) is made by the first `agention serve`
+  that finds none, kept in the database, and never changes; only its public half leaves the server.
+  Each device's push address and keys are secrets the server holds like the others: never logged or
+  answered, a log line naming a device only by its id and its push service's host. Backups hold them
+  all, which is one more reason backups are private files, and a restore keeps every device's
+  notifications working.
+- **Who manages them.** Only the operator's signed-in browser, through the web mount with its CSRF
+  check: turning a device on and removing another device need a sign-in within the last 10 minutes,
+  turning this device off needs none, and Settings list every device. A device's notifications end
+  when it turns them off, signs out, or loses the passkey that signed it in, or when the operator
+  removes it from another device, and not when its sign-in expires. Only the web UI turns a view's
+  notifying on or off; no API key or agent can subscribe a device, see one, or read which views
+  notify. A key holding `saved-views:write` can replace or remove a view that notifies, which
+  changes what notifies (see [API keys](#api-keys)).
+- **What notifies.** Only an agent's message, never the operator's own writes or time passing, and
+  only by a saved view's filters: a view with search, overdue, or the agent's reading on cannot
+  notify, so nothing notifies on what messages say.
+
 ### API keys
 
 An API key is a bearer credential with the operator's reach within its scopes: whoever holds it acts
@@ -177,10 +218,14 @@ operator runs can act for them ([ADR 0003](docs/adrs/0003-operator-api-keys.md))
   session's group or tags needs `sessions:write` too, which the store checks with the approval. The
   operator's saved views, each a name and a thread list, have scopes of their own:
   `saved-views:read` reads them, and a key holding `saved-views:write` can change which lists the
-  operator's views open, and nothing more, since a view grants nothing and opening one only shows a
-  list. Renaming a tag with `sessions:write` renames it in the saved views naming it too, as it
-  renames it everywhere else. A message written with a key is the operator's, and records no key;
-  the [audit log](#audit-log) records which key wrote it.
+  operator's views open, since a view grants nothing and opening one only shows a list, and so what
+  notifies the operator: replacing a view that notifies changes what it matches, and ends its
+  notifying when the new list has a filter on that cannot notify, and removing it ends its
+  notifying. The key can neither see nor set which views notify, nor reach a device (see
+  [Notifications](#notifications)); saved views and notifications shipped in one release, so no key
+  issued before gained this. Renaming a tag with `sessions:write` renames it in the saved views
+  naming it too, as it renames it everywhere else. A message written with a key is the operator's,
+  and records no key; the [audit log](#audit-log) records which key wrote it.
 - **Its life.** A key expires when the operator chose, at most a year after it was created, unless
   they chose no expiry, which Settings warn against. Revocation and expiry take effect at once:
   every operation confirms the key inside its own transaction, and a wait the key holds ends with
@@ -202,22 +247,24 @@ saved fails the change. The operator guide's "Audit log" lists what it records.
 
 - **Metadata only.** An event names who acted, by credential, what they acted on, by id, with the
   names the operator and agents chose for agents, sessions, groups, tags, saved views, keys, and
-  passkeys, the outcome, the request's origin, and the time. It never holds a message's or an
-  answer's text, a thread's title, a saved view's list, a file's name or bytes, a transcription, or
-  a secret: no session cookie or its hash, CSRF token, API key, passkey link token, passkey
-  material, the instance's own key, an agent's token, or the transcription key. The events are built
-  from typed inputs only, which have no field for any of these, and a test plants a marker in every
-  one of them and finds it in no event, no delivered line and no stderr line.
+  passkeys, and the devices' labels, the outcome, the request's origin, and the time. It never holds
+  a message's or an answer's text, a thread's title, a saved view's list, a file's name or bytes, a
+  transcription, or a secret: no session cookie or its hash, CSRF token, API key, passkey link
+  token, passkey material, the instance's own key, the push key, a device's push endpoint or keys,
+  an agent's token, or the transcription key. The events are built from typed inputs only, which
+  have no field for any of these, and a test plants a marker in every one of them and finds it in no
+  event, no delivered line and no stderr line.
 - **Credentials by ids that are not secret.** A browser session is named by a random id of its own,
   never its cookie or anything derived from it, with the passkey that signed it in; an API key by
   its id and name; an agent by its registration's id.
 - **Bounded input from clients.** Beside ids and numbers, an event carries what clients chose only
   as bounded, grammar-checked values: the names of agents, sessions, groups, tags, saved views, keys
-  and passkeys, an upload's media type, and the user agent. The user agent, cut to 256 characters,
-  is the only free-form text a client chooses that reaches an event. A refused request, and a key's
-  first use, which is recorded before the request's path is checked, record the route's pattern,
-  never the path the client sent. Every event is written on one line, with the characters some
-  readers take for a line's end escaped.
+  and passkeys, an upload's media type, the user agent, and the devices' labels. The user agent, cut
+  to 256 characters, and a device's label, one line of at most 60 characters, are the only free-form
+  text a client chooses that reaches an event. A refused request, and a key's first use, which is
+  recorded before the request's path is checked, record the route's pattern, never the path the
+  client sent. Every event is written on one line, with the characters some readers take for a
+  line's end escaped.
 - **Failures are bounded.** Failed sign-ins and links, which anyone who can reach the server can
   cause, and refusals of an API key the server knows, revoked, expired or lacking a scope, are
   recorded only once they have spent their [rate budget](docs/operator-guide.md#rate-budgets), and

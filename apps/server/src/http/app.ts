@@ -100,6 +100,8 @@ export interface AppOptions {
   transcription?: TranscriptionProvider;
   // Whether to serve the API's documentation under /docs/api/.
   apiDocs?: boolean;
+  // The server's push public key, base64url (push/vapid.ts).
+  pushPublicKey: string;
 }
 
 const notFoundBody: ErrorBody = { error: { code: "not_found", message: "not found" } };
@@ -179,6 +181,7 @@ export function createApp(options: AppOptions): Hono {
       budgets,
       voiceEnvironment: options.voiceEnvironment ?? {},
       transcription: options.transcription ?? openAiCompatible(),
+      pushPublicKey: options.pushPublicKey,
       log,
       recordFailure,
       shutdown,

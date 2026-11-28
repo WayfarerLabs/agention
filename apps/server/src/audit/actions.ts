@@ -5,9 +5,10 @@ import type { Color, Scope, WorkOutcome, WorkState } from "@wayfarerlabs/agentio
 // how its event names what the action did, from the typed input it is built
 // from. An input holds ids, numbers, flags, and the names the operator and
 // agents chose for agents, sessions, groups, tags, saved views, keys, and
-// passkeys, read from rows the store holds. No input takes a request body,
-// message or answer text, a title, a saved view's list, a file name, or a
-// secret, so none can reach an event.
+// passkeys, and the labels devices that receive notifications reported, read
+// from rows the store holds. No input takes a request body, message or answer
+// text, a title, a saved view's list, a file name, a secret, or a push
+// subscription's endpoint or keys, so none can reach an event.
 
 // JSON as events hold it; a key whose value is undefined is left out, as
 // JSON.stringify leaves it out.
@@ -57,7 +58,7 @@ export interface GroupRef {
 }
 
 // A saved view's, a key's, or a passkey's id and the name the operator gave
-// it.
+// it, or a device's id and the label it reported.
 export interface NamedRef {
   id: number;
   name: string;
@@ -214,6 +215,19 @@ const savedViewResource = (view: NamedRef, data?: JsonObject): JsonObject => ({
   data,
 });
 
+// A device that receives notifications, named by the label it reported,
+// never by its push subscription.
+const deviceResource = (device: NamedRef, data?: JsonObject): JsonObject => ({
+  type: "push_device",
+  uid: `push_device:${device.id}`,
+  name: device.name,
+  data,
+});
+
+// The devices a write removed in passing, as a browser session's older
+// subscription is when it takes a new one.
+const replacedDevices = (ids: number[]): Json => ids.map((id) => `push_device:${id}`);
+
 const voiceResource = (data?: JsonObject): JsonObject => ({
   type: "voice_settings",
   uid: "voice_settings",
@@ -338,8 +352,25 @@ export const auditActions = {
   renameSavedView: write(3, (input: { view: NamedRef; previousName: string }) => [
     savedViewResource(input.view, { previous_name: input.previousName }),
   ]),
-  replaceSavedView: write(3, (input: { view: NamedRef }) => [savedViewResource(input.view)]),
-  removeSavedView: write(4, (input: { view: NamedRef }) => [savedViewResource(input.view)]),
+  replaceSavedView: write(3, (input: { view: NamedRef; endedNotifying: boolean }) => [
+    savedViewResource(input.view, { ended_notifying: input.endedNotifying }),
+  ]),
+  removeSavedView: write(4, (input: { view: NamedRef; endedNotifying: boolean }) => [
+    savedViewResource(input.view, { ended_notifying: input.endedNotifying }),
+  ]),
+  notifyView: write(3, (input: { view: NamedRef }) => [
+    savedViewResource(input.view, { notifies: true }),
+  ]),
+  stopNotifying: write(3, (input: { view: NamedRef }) => [
+    savedViewResource(input.view, { notifies: false }),
+  ]),
+  addPushDevice: write(1, (input: { device: NamedRef; replaced: number[] }) => [
+    deviceResource(input.device, { replaced: replacedDevices(input.replaced) }),
+  ]),
+  refreshPushDevice: write(3, (input: { device: NamedRef; replaced: number[] }) => [
+    deviceResource(input.device, { replaced: replacedDevices(input.replaced) }),
+  ]),
+  removePushDevice: write(4, (input: { device: NamedRef }) => [deviceResource(input.device)]),
   setSessionGroup: write(3, (input: { session: SessionRef; group: number | null }) => [
     sessionResource(input.session, {
       group: input.group === null ? null : `group:${input.group}`,

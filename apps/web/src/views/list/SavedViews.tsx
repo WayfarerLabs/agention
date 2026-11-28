@@ -1,9 +1,16 @@
-import type { SavedView, SavedViewList, ThreadsView } from "@wayfarerlabs/agention-api";
+import {
+  refusedFilterNames,
+  refusedFiltersOn,
+  type SavedView,
+  type SavedViewList,
+  type ThreadsView,
+} from "@wayfarerlabs/agention-api";
 import { useId, useRef, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure, Loadable, Sheet, useFocusWhenShown } from "../../components.tsx";
-import { type Resource, useAction } from "../../data.ts";
+import { type Resource, useAction, useResource } from "../../data.ts";
 import { Icon } from "../../icons.tsx";
+import { loadNotifications } from "../../push/subscription.ts";
 import { Link, listHref, navigate } from "../../router.tsx";
 import { NameForm } from "../settings/Organizer.tsx";
 
@@ -11,7 +18,9 @@ import { NameForm } from "../settings/Organizer.tsx";
 // own: a sheet from the bottom on a phone, a panel on a wide screen. It
 // lists the views by name, each a link to its list, those whose list is on
 // screen checked, as a picker marks its choice, and each other offering to
-// take the list on screen in place of its own, which asks first. Beneath
+// take the list on screen in place of its own, which asks first, saying when
+// that ends the view's notifying, or that it may while which views notify is
+// unknown. Beneath
 // them, Save as new view names the list on screen, and Manage saved views
 // opens Settings' section. Opening a view goes to its list's address, a new
 // history entry as any link to a list makes, and closes the sheet; nothing
@@ -36,6 +45,21 @@ export function SavedViewsSheet({
   const [saving, setSaving] = useState(false);
   const saveButton = useRef<HTMLButtonElement>(null);
   const focus = useFocusWhenShown(views.data);
+  // Which views notify, for Replace's question, which hedges while that is
+  // unknown.
+  const notifications = useResource(loadNotifications);
+  const [refused] = refusedFiltersOn(shown);
+  const replaceQuestion = (view: SavedView) => {
+    const notifies = notifications.data?.notifying.includes(view.id);
+    const filter = refused === undefined ? "" : `its ${refusedFilterNames[refused]} filter on`;
+    const notifying =
+      refused === undefined || notifies === false
+        ? ""
+        : notifies === undefined
+          ? ` The list on screen has ${filter}, so if the view notifies, replacing it ends its notifying.`
+          : ` It notifies, and the list on screen has ${filter}, so replacing it ends its notifying.`;
+    return `Replace the list of ${view.name} with the list on screen?${notifying}`;
+  };
   const linkOf = (view: SavedView) => `${id}-view-${view.id}`;
   const close = () => sheet.current?.close();
   const replace = async (view: SavedView) => {
@@ -45,6 +69,7 @@ export function SavedViewsSheet({
     // A failure may come of the view having changed or gone, so the list is
     // read again either way, as Settings' Rename does.
     await views.refresh();
+    void notifications.refresh();
     if (done !== undefined) {
       focus(linkOf(view));
     }
@@ -106,7 +131,7 @@ export function SavedViewsSheet({
                       <ConfirmButton
                         label="Replace with this list"
                         confirmLabel="Replace"
-                        question={`Replace the list of ${view.name} with the list on screen?`}
+                        question={replaceQuestion(view)}
                         disabled={action.pending}
                         onConfirm={() => void replace(view)}
                       />

@@ -1,5 +1,6 @@
 import {
   maxSavedViews,
+  refusedFiltersOn,
   type SavedView,
   type SavedViewCreateInput,
   type SavedViewList,
@@ -19,7 +20,10 @@ import { operate, type Store } from "./store.ts";
 // is a name and one thread list, stored whole as the list's view parsed it,
 // every part included, so a view keeps the list as it was saved, the
 // defaults then in force among it. It is the operator's configuration, not a
-// log, so it changes in place.
+// log, so it changes in place. A view may also notify (notifications.ts),
+// which no saved views operation reads, and two of their writes change:
+// replacing a view's list with one notifying refuses ends its notifying, and
+// removing a view ends it with the view.
 
 // A view's row, its list as the JSON text it was stored as.
 interface ViewRow {
@@ -35,7 +39,7 @@ interface ViewRow {
 // rewriting the stored views, so this never meets one.
 const storedView = threadsView.strict();
 
-const readView = (text: string): ThreadsView => storedView.parse(JSON.parse(text));
+export const readView = (text: string): ThreadsView => storedView.parse(JSON.parse(text));
 
 const savedViewOf = (row: ViewRow): SavedView => ({
   id: row.id,
@@ -136,8 +140,23 @@ export function renameSavedView(
   });
 }
 
+// notifies reads whether a view notifies, refusing one that does not exist as
+// not found.
+function notifies(db: Database, id: number): boolean {
+  const row = db.prepare("SELECT notifies FROM saved_views WHERE id = ?").get(id) as
+    { notifies: number } | undefined;
+  if (row === undefined) {
+    throw notFound("id");
+  }
+  return row.notifies === 1;
+}
+
 // replaceSavedView puts another list in place of a view's, keeping its name
-// and its id.
+// and its id. A list with a filter on that a notifying view refuses ends the
+// view's notifying in the same update, so no view that notifies has one on;
+// any other keeps it, and the next check matches the new list. This is a
+// write across resources that saved-views:write allows: an API key holding
+// it changes what notifies, though it can neither see nor set which views do.
 export function replaceSavedView(
   store: Store,
   identity: Identity,
@@ -145,20 +164,36 @@ export function replaceSavedView(
   input: SavedViewViewInput,
 ): SavedView {
   return operate(store, identity, "saved-views:write", (db, record) => {
-    db.prepare("UPDATE saved_views SET view = ? WHERE id = ?").run(JSON.stringify(input.view), id);
+    const notified = notifies(db, id);
+    const refused = refusedFiltersOn(input.view).length > 0;
+    db.prepare("UPDATE saved_views SET view = ?, notifies = IIF(?, 0, notifies) WHERE id = ?").run(
+      JSON.stringify(input.view),
+      refused ? 1 : 0,
+      id,
+    );
     const saved = readSavedView(db, id);
-    record("replaceSavedView", { view: { id, name: saved.name } });
+    record("replaceSavedView", {
+      view: { id, name: saved.name },
+      endedNotifying: notified && refused,
+    });
     return saved;
   });
 }
 
 // removeSavedView removes a view, which leaves every list and thread as it
-// was.
+// was, and ends its notifying with it when it notifies.
 export function removeSavedView(store: Store, identity: Identity, id: number): void {
   operate(store, identity, "saved-views:write", (db, record) => {
-    const name = viewName(db, id);
-    db.prepare("DELETE FROM saved_views WHERE id = ?").run(id);
-    record("removeSavedView", { view: { id, name } });
+    const removed = db
+      .prepare("DELETE FROM saved_views WHERE id = ? RETURNING name, notifies")
+      .get(id) as { name: string; notifies: number } | undefined;
+    if (removed === undefined) {
+      throw notFound("id");
+    }
+    record("removeSavedView", {
+      view: { id, name: removed.name },
+      endedNotifying: removed.notifies === 1,
+    });
   });
 }
 

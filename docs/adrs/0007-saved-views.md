@@ -4,7 +4,9 @@ Date: 2026-11-26
 
 ## Status
 
-Accepted
+Accepted. Its "One crossing is intended" is amended by [ADR 0008](0008-web-push-to-the-operator.md)
+with a second: replacing or removing a view that notifies, under `saved-views:write`, changes what
+notifies.
 
 ## Context
 
@@ -44,7 +46,9 @@ devices; those that keep only the query draw recurring complaints from people wh
   and the operator mount alike, under `saved-views:read` and `saved-views:write`, the write
   including the read. Folding them into the thread scopes would change what those grant. One
   crossing is intended: a tag's rename, under `sessions:write`, rewrites the views naming it, as it
-  renames the tag everywhere else.
+  renames the tag everywhere else. (Amended by [ADR 0008](0008-web-push-to-the-operator.md): a
+  second crossing is intended, replacing or removing a view that notifies, under
+  `saved-views:write`, which changes what notifies.)
 - **No agent access.** A view organizes the operator's attention, as groups and tags do, so no agent
   route or tool reads or writes one; an agent lists its own session's threads with its own filters.
 - **No default view.** The Threads tab and its key still open the list with no filter on; no view
@@ -76,4 +80,5 @@ devices; those that keep only the query draw recurring complaints from people wh
   still naming it, as it matches the address.
 - `threadsView` gains a duty: a change to it that would refuse a stored view is not done until a
   migration rewrites the views, which review checks.
-- Notifications, when they come, can build their rules on saved views.
+- Notifications build their rules on saved views: a view may notify
+  ([ADR 0008](0008-web-push-to-the-operator.md)).

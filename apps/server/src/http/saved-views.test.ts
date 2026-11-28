@@ -14,6 +14,9 @@ let harness: Harness;
 
 beforeEach(() => {
   harness = new Harness();
+  // These start from no views: the starting view notifications add, which
+  // notifications.test.ts covers, is removed.
+  harness.fixture.db.prepare("DELETE FROM saved_views").run();
 });
 
 afterEach(() => {

@@ -613,14 +613,19 @@ From the top:
 **Features**, **Threads** (`/settings/threads`), whose **Auto-advance** chooses where **Archive
 all** takes you, as [A thread](#a-thread) describes, **Groups and tags**
 (`/settings/groups-and-tags`), as [Groups and tags](#groups-and-tags) describes, **Saved views**
-(`/settings/saved-views`), as [Saved views](#saved-views) describes, **Voice** (`/settings/voice`),
-as [Voice](operator-guide.md#voice) describes, **Storage** (`/settings/storage`), as
+(`/settings/saved-views`), as [Saved views](#saved-views) describes, with each view's **Notify**
+switch, which sets which views notify, **Notifications** (`/settings/notifications`), this device's
+switch and the devices that receive notifications, as
+[Notifications](operator-guide.md#notifications) describes, **Voice** (`/settings/voice`), as
+[Voice](operator-guide.md#voice) describes, **Storage** (`/settings/storage`), as
 [Attachments](operator-guide.md#attachments) describes, and **Keyboard** (`/settings/keyboard`), as
 [Keyboard shortcuts](#keyboard-shortcuts) describes; and **Sign out** (`/settings/sign-out`), which
 signs this browser out, forgetting the drafts it kept, and leaves your others signed in. On a wide
 screen the sections are listed beside the one open; on a phone Settings opens on the list, and each
 section has a link back to it. `/passkeys` leads to Passkeys. While your sign-in is too old for a
-change to passkeys, API keys or voice, those sections offer **Sign in again** first.
+change to passkeys, API keys or voice, or to turn this device's notifications on or remove another
+device, those sections offer **Sign in again** first. Signing out also ends this browser's
+notifications.
 
 ## Markdown and diagrams
 
@@ -717,14 +722,24 @@ has the same ones, and a backup holds them. Agents never see them, and they gran
   time, such as **Overdue**, is judged as the list shows, not when the view was saved. Changing the
   list after opening a view leaves the view as it was.
 - **Replace with this list**, on each view that is not current, puts the list on screen in place of
-  the view's own, after asking. Nothing else changes a view's list.
+  the view's own, after asking. Nothing else changes a view's list. For a view that notifies, when
+  the list on screen has a filter on that a view that notifies cannot have, the question says that
+  replacing it ends its notifying, or, when which views notify could not be read, that it ends it if
+  the view notifies.
 - **Save as new view** names the list on screen and saves it, every part of it, even one at its
   default, so a later change to a default leaves your view as you saved it. A name is up to 100
   characters on one line and unique, whatever the case of its letters A to Z; you can keep up to 200
   views.
 - **Manage saved views** opens **Settings**, under **Saved views** (`/settings/saved-views`), which
-  lists your views by name, each linking to its list, with **Rename** and **Remove**, which asks
-  first and leaves every list and thread as it was.
+  lists your views by name, each linking to its list, with **Notify**, **Rename** and **Remove**,
+  which asks first and leaves every list and thread as it was; for a view that notifies, its
+  question says that removing it ends its notifying, or, when which views notify could not be read,
+  which the section then says, that it ends it if the view notifies.
+- **Notify**, on each view in Settings, says whether an agent's message in a thread the view's list
+  keeps notifies the devices you turned notifications on for, as
+  [Notifications](operator-guide.md#notifications) describes. A view with **Search**, **Overdue** or
+  **Read by agent** on cannot notify, and its switch stays off, saying which filter keeps it so. The
+  starting view **Blocking asks** notifies until you turn it off.
 
 **Threads** and `g` then `t` still open the list with no filter on: no view takes its place.
 

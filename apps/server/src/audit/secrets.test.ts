@@ -1,3 +1,4 @@
+import { createECDH, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -113,6 +114,41 @@ it("keeps every secret and all content out of the log", async () => {
     view: { search: `${marker}-replaced-search` },
   });
   expect(codeOf(replaced)).toBe("ok");
+  // A device's notifications, whose endpoint and keys are secrets the server
+  // holds, turned on, refreshed under new keys and removed, and the view's
+  // notifying turned on and off, with the server's push key kept.
+  keep(
+    (
+      harness.fixture.db.prepare("SELECT vapid_private_key FROM instance").get() as {
+        vapid_private_key: Uint8Array;
+      }
+    ).vapid_private_key,
+  );
+  const subscription = () => {
+    const ecdh = createECDH("prime256v1");
+    ecdh.generateKeys();
+    const auth = randomBytes(16);
+    keep(ecdh.getPublicKey(), auth);
+    return {
+      endpoint: `https://fcm.googleapis.com/fcm/send/${marker}-endpoint`,
+      keys: {
+        p256dh: ecdh.getPublicKey().toString("base64url"),
+        auth: auth.toString("base64url"),
+      },
+      label: "Chrome on Android",
+    };
+  };
+  const turnedOn = await harness.web("POST", "/notifications/devices", subscription());
+  expect(codeOf(turnedOn)).toBe("ok");
+  const device = (turnedOn.body as { device: { id: number } }).device.id;
+  expect(codeOf(await harness.web("POST", "/notifications/devices/refresh", subscription()))).toBe(
+    "ok",
+  );
+  expect(codeOf(await harness.web("POST", `/notifications/devices/${device}/remove`))).toBe("ok");
+  const plain = await harness.web("POST", "/saved-views", { name: "Plain", view: {} });
+  const plainId = (plain.body as { id: number }).id;
+  expect(codeOf(await harness.web("POST", "/notifications/views", { view: plainId }))).toBe("ok");
+  expect(codeOf(await harness.web("POST", `/notifications/views/${plainId}/remove`))).toBe("ok");
   await harness.web("POST", "/transcriptions", Buffer.from(`${marker}-audio`), {
     headers: { "content-type": "audio/webm" },
   });

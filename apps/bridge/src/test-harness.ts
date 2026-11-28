@@ -158,6 +158,7 @@ export class BridgeHarness {
       rates: { ...defaultRates, key: { burst: 10_000, interval: 1000 } },
       shutdown: this.server.shutdown.signal,
       log: (message) => this.logged.push(message),
+      pushPublicKey: this.server.pushKey.publicKey,
     });
     return this;
   }

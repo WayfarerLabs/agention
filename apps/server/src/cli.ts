@@ -15,6 +15,8 @@ import { BackupError, backupDatabase } from "./database/backup.ts";
 import { Database, DatabaseOpenError } from "./database/database.ts";
 import { createApp, securityHeaderValues } from "./http/app.ts";
 import { ListenerConfigError, listen, planListener } from "./http/listener.ts";
+import { PushSender } from "./push/sender.ts";
+import { settlePushKey } from "./push/vapid.ts";
 import {
   createStore,
   findOperator,
@@ -367,7 +369,13 @@ async function serve(args: string[], io: Io): Promise<number> {
   }
   const shutdown = new AbortController();
   let sweeps: ReturnType<typeof sweepRegularly> | undefined;
-  const store = createStore(db, quietAfter === undefined ? {} : { quietAfter });
+  // Agents' messages are checked for notifications, and sent, once the sender
+  // exists, which it does before the server listens.
+  let sender: PushSender | undefined;
+  const store = createStore(db, {
+    ...(quietAfter === undefined ? {} : { quietAfter }),
+    afterAgentMessage: (message) => sender?.afterAgentMessage(message),
+  });
   const dispatcher = new AuditDispatcher(store, sinks, { log });
   let started = false;
   try {
@@ -379,6 +387,9 @@ async function serve(args: string[], io: Io): Promise<number> {
       throw renamed(stored);
     }
     const name = stored ?? givenName ?? "Agention";
+    // The push key is made by the first start that finds none, and kept.
+    const pushKey = settlePushKey(db);
+    sender = new PushSender({ store, key: pushKey, log, shutdown: shutdown.signal });
     // Each sink has its cursor before the first prune, so a sink new to the
     // database receives every event retained when it starts.
     dispatcher.start();
@@ -396,6 +407,7 @@ async function serve(args: string[], io: Io): Promise<number> {
       shutdown: shutdown.signal,
       log,
       apiDocs: flags["api-docs"],
+      pushPublicKey: pushKey.publicKey,
     });
     let listening;
     try {

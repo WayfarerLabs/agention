@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { request } from "./api.ts";
 import { keepDraft, readDraft, signOutMark } from "./device.ts";
-import { matchRoute, navigate, safeReturnPath } from "./router.tsx";
+import { navigate, safeReturnPath } from "./router.tsx";
+import { matchRoute } from "./routes.ts";
 import {
   csrf,
   FakeApi,

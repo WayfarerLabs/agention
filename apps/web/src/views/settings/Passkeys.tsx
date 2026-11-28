@@ -9,6 +9,7 @@ import { request } from "../../api.ts";
 import { ConfirmButton, Failure, Loadable, Status, Tags } from "../../components.tsx";
 import { useAction, useResource } from "../../data.ts";
 import { forgetDrafts } from "../../device.ts";
+import { forgetNotificationsHere } from "../../push/subscription.ts";
 import { Time } from "../../format.tsx";
 import { addPasskey, passkeysSupported } from "../../passkeys.ts";
 import { useSession } from "../../session.tsx";
@@ -149,8 +150,10 @@ function PasskeyItem({
       ),
     );
     if (removed?.signed_out === true) {
-      // Signed out, the browser forgets its drafts as Sign out does.
+      // Signed out, the browser forgets its drafts as Sign out does, and its
+      // notifications, which the server ended with the passkey.
       forgetDrafts();
+      forgetNotificationsHere();
       const signedOut: SessionState = { signed_in: false, operator_exists: true };
       session.update(signedOut);
       return;

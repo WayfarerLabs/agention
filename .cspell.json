@@ -25,6 +25,7 @@
     "getent",
     "Groq",
     "gsub",
+    "HKDF",
     "HMAC",
     "homelab",
     "HSTS",

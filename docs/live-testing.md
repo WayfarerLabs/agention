@@ -71,20 +71,23 @@ disagreement is the finding.
   `saved-views:write` saving, renaming, replacing and removing them, a name another view has refused
   as `conflict`, a list the thread list refuses as `invalid_input` naming the part, and each refused
   as `not_found` to a key without its scope; a tag renamed with `sessions:write` renaming it in the
-  views naming it (`docs/architecture.md` "Saved views"). The file routes on every mount, the
-  operator mount with a key of each threads scope among them: an upload's answer, each of its
-  refusals by its code and status (chunked, over 100 MiB, the pending limits by count and bytes,
-  `storage_full` with the disk filled, a length that does not match), a message naming another
-  writer's, another session's, an expired or an attached upload refused alike, `keep` on a
-  replacement; a file read with each single range, several ranges answered whole, a range outside
-  the file answered 416 with `Content-Range`, `HEAD`, and a `file` reference that is not the file's,
-  and another session's thread, `not_found`; on the operator mount, an upload or its removal refused
-  to a key without `threads:write` and a list or read refused to one without `threads:read`, as
-  `not_found`, removing an attached file refused, and the file still reading, and a revoked key's
-  transfer stopped within a chunk; and the listener's deadlines, an idle body cut at 30 seconds with
-  a 408 carrying the security headers and, on the agent mount, the version, a request body cut at 30
-  seconds whole, and an upload trickling past that finishing (`docs/architecture.md` "HTTP API" and
-  "Serving").
+  views naming it (`docs/architecture.md` "Saved views"); and a `saved-views:write` key's replace of
+  Blocking asks, which notifies, with a list that has search on ending its notifying, which
+  Settings' Notify switch then shows off, a replace with a list that has none keeping it, and its
+  removal of a notifying view ending it, the listed views carrying no sign of which notify
+  (`docs/architecture.md` "Notifications"). The file routes on every mount, the operator mount with
+  a key of each threads scope among them: an upload's answer, each of its refusals by its code and
+  status (chunked, over 100 MiB, the pending limits by count and bytes, `storage_full` with the disk
+  filled, a length that does not match), a message naming another writer's, another session's, an
+  expired or an attached upload refused alike, `keep` on a replacement; a file read with each single
+  range, several ranges answered whole, a range outside the file answered 416 with `Content-Range`,
+  `HEAD`, and a `file` reference that is not the file's, and another session's thread, `not_found`;
+  on the operator mount, an upload or its removal refused to a key without `threads:write` and a
+  list or read refused to one without `threads:read`, as `not_found`, removing an attached file
+  refused, and the file still reading, and a revoked key's transfer stopped within a chunk; and the
+  listener's deadlines, an idle body cut at 30 seconds with a 408 carrying the security headers and,
+  on the agent mount, the version, a request body cut at 30 seconds whole, and an upload trickling
+  past that finishing (`docs/architecture.md` "HTTP API" and "Serving").
 - **Agent bridge**, started the way the plugin declares it: for the head under test, the plugins
   rendered against its packed bridge (`CONTRIBUTING.md` "Generated plugins"), whose entry is
   `npx -y --package=<tarball> agention-mcp`; the published bridge from npm only when the charter
@@ -111,6 +114,22 @@ disagreement is the finding.
   nothing sent again, the page and every other file of the build `no-store`, and a name an upgrade
   removed, which a page loaded before it still asks for, answered `not_found`, status 404, uncached
   (`docs/architecture.md` "The web UI's files").
+- **Notifications** on the operator's devices, with the packed server published over HTTPS: turning
+  them on in Settings on Android Chrome, installed and not, and on Windows in Edge and in Chrome; an
+  agent's blocking ask arriving on the phone with Agention closed and its screen off for a while,
+  showing the thread's title and "Blocking ask" and no message text, and opening the thread from it;
+  a second agent message before reading sending nothing, and one after reading or archiving the
+  thread notifying again; a notification opened with a web UI window open focusing it on the thread,
+  and with the API's documentation open beside it, choosing the web UI window; the device list's
+  last-sent time; removing the phone from the desktop and the phone's Settings then saying Stopped;
+  signing the phone out ending its notifications; a view with search on refusing Notify, saying why;
+  and the server's log naming each device by id and push service host, never an endpoint's path
+  (`docs/operator-guide.md` "Notifications"). Apple browsers are untested (no Apple device), and
+  Edge on Windows is unaccepted: on the operator's machine Windows' own push client refused Edge a
+  channel (`edge://push-internals` names the failure), while Chrome there turned on. The tester
+  checks the routes and the server's outbound limits on a loopback instance: an endpoint of an
+  unknown host, a port, user information, or plain HTTP refused when registered, and a send
+  following no redirect; real delivery is the operator's acceptance.
 - **Web UI** in a real browser with a virtual WebAuthn authenticator: passkey link and sign-in; the
   operator's passkeys (adding one on this device, renaming, removing, the recent sign-in both need,
   the last passkey kept, and removal ending the browser sessions it signed in); the thread list's
@@ -319,8 +338,9 @@ On top of the method's failure classes, look for:
   sweep; a `file_get` that fails leaving no partial file.
 - **Audit gaps**: a write, sign-in or credential change without its event, or an event without its
   change; an event naming another credential than the one that made the write; a message's or an
-  answer's text, a title, a file name, or any secret in a line or a stderr message; an event
-  delivered out of order, or lost across a restart or a failing sink.
+  answer's text, a title, a file name, a push subscription's endpoint or keys, or any secret in a
+  line or a stderr message; an event delivered out of order, or lost across a restart or a failing
+  sink.
 - **Environment masking**: the session name variables, `AGENTION_` and `AGENTWORKS_`, present,
   absent, empty or mixed, a different umask, clock skew between bridge and server,
   `NODE_TLS_REJECT_UNAUTHORIZED=0` in the bridge's environment.

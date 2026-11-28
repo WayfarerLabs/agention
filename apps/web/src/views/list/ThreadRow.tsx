@@ -26,7 +26,8 @@ import {
 } from "../../format.tsx";
 import { Mark } from "../../icons.tsx";
 import { readDraft } from "../../device.ts";
-import { currentListView, Link, listHref, threadHref } from "../../router.tsx";
+import { currentListView, Link, listHref } from "../../router.tsx";
+import { threadHref } from "../../routes.ts";
 import { CodeLinksMark, RowCodeLink } from "../code-links.tsx";
 import type { ListShown } from "../filter-links.tsx";
 import { ListBeside, landFrom } from "../side-by-side.tsx";

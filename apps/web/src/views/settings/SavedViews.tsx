@@ -1,49 +1,122 @@
-import type { SavedView } from "@wayfarerlabs/agention-api";
+import { refusedFilterNames, refusedFiltersOn, type SavedView } from "@wayfarerlabs/agention-api";
 import { useId, useState } from "react";
 import { request } from "../../api.ts";
 import { ConfirmButton, Failure, Loadable, useFocusWhenShown } from "../../components.tsx";
 import { useAction, useResource } from "../../data.ts";
 import { Link, listHref } from "../../router.tsx";
+import { loadNotifications } from "../../push/subscription.ts";
 import { loadSavedViews } from "../../saved-views.ts";
 import { focusNext, NameForm } from "./Organizer.tsx";
 import type { SectionProps } from "./sections.ts";
 
 // Settings' saved views: every view, by name, each linking to its list, with
-// Rename, which opens a field for its new name in its place, and Remove,
-// which asks first and leaves every list and thread as it was, focus moving
-// to the view after it, or to the section's heading once none is left.
+// Notify, which says whether an agent's message in a thread its list keeps
+// notifies the operator's devices, Rename, which opens a field for its new
+// name in its place, and Remove, which asks first, saying when it ends the
+// view's notifying, or that it may while which views notify is unknown, and
+// leaves every list and thread as it was, focus moving to the view after it,
+// or to the section's heading once none is left. A failure to read which
+// views notify is shown above the list, with a retry.
 // Views are saved, and their lists replaced, from the thread list's Saved
 // views.
 export function SavedViewsSection({ focusHeading }: SectionProps) {
   const id = useId();
   const views = useResource(loadSavedViews);
+  const notifications = useResource(loadNotifications);
+  const notifying = notifications.data?.notifying;
   const focus = useFocusWhenShown(views.data);
   const rowOf = (view: SavedView) => `${id}-row-${view.id}`;
   return (
-    <Loadable data={views.data} failure={views.failure} retry={() => void views.refresh()}>
-      {({ views: all }) =>
-        all.length === 0 ? (
-          <p className="muted">
-            No saved views yet. Save one from the thread list's <Link to="/">Saved views</Link>.
-          </p>
-        ) : (
-          <ul className="organizer">
-            {all.map((view, index) => (
-              <SavedViewRow
-                key={view.id}
-                view={view}
-                rowId={rowOf(view)}
-                refresh={() => void views.refresh()}
-                onRenamed={() => focus(`${rowOf(view)}-rename`)}
-                onRemoved={() =>
-                  all.length === 1 ? focusHeading() : focusNext(all.map(rowOf), index, "")
-                }
-              />
-            ))}
-          </ul>
-        )
-      }
-    </Loadable>
+    <>
+      <Failure failure={notifications.failure} action="Reading which views notify">
+        <button type="button" className="secondary" onClick={() => void notifications.refresh()}>
+          Try again
+        </button>
+      </Failure>
+      <Loadable data={views.data} failure={views.failure} retry={() => void views.refresh()}>
+        {({ views: all }) =>
+          all.length === 0 ? (
+            <p className="muted">
+              No saved views yet. Save one from the thread list's <Link to="/">Saved views</Link>.
+            </p>
+          ) : (
+            <ul className="organizer">
+              {all.map((view, index) => (
+                <SavedViewRow
+                  key={view.id}
+                  view={view}
+                  notifies={notifying?.includes(view.id)}
+                  rowId={rowOf(view)}
+                  refresh={() => void views.refresh()}
+                  refreshNotifying={() => void notifications.refresh()}
+                  onRenamed={() => focus(`${rowOf(view)}-rename`)}
+                  onRemoved={() =>
+                    all.length === 1 ? focusHeading() : focusNext(all.map(rowOf), index, "")
+                  }
+                />
+              ))}
+            </ul>
+          )
+        }
+      </Loadable>
+    </>
+  );
+}
+
+// removeQuestion is Remove's question, which says when removing a view ends
+// its notifying, and hedges while which views notify is unknown.
+function removeQuestion(view: SavedView, notifies: boolean | undefined): string {
+  const notifying =
+    notifies === undefined
+      ? " If it notifies, removing it ends its notifying."
+      : notifies
+        ? " It notifies, and removing it ends its notifying."
+        : "";
+  return `Remove the saved view ${view.name}?${notifying} Every list and thread stays as it is.`;
+}
+
+// NotifySwitch turns a view's notifying on or off. A view with a filter on
+// that cannot notify has it off, saying which.
+function NotifySwitch({
+  view,
+  notifies,
+  refresh,
+}: {
+  view: SavedView;
+  // Whether it notifies, unknown until the section has read it.
+  notifies: boolean | undefined;
+  refresh: () => void;
+}) {
+  const id = useId();
+  const action = useAction();
+  const [refused] = refusedFiltersOn(view.view);
+  const change = async (on: boolean) => {
+    await action.run((csrf) =>
+      on
+        ? request("POST", "/notifications/views", { csrf, body: { view: view.id } })
+        : request("POST", `/notifications/views/${view.id}/remove`, { csrf }),
+    );
+    refresh();
+  };
+  return (
+    <>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={notifies === true}
+          disabled={notifies === undefined || refused !== undefined || action.pending}
+          aria-describedby={refused === undefined ? undefined : `${id}-refused`}
+          onChange={(event) => void change(event.target.checked)}
+        />
+        Notify
+      </label>
+      {refused !== undefined && (
+        <p className="hint" id={`${id}-refused`}>
+          Cannot notify while its {refusedFilterNames[refused]} filter is on.
+        </p>
+      )}
+      <Failure failure={action.failure} />
+    </>
   );
 }
 
@@ -52,16 +125,20 @@ export function SavedViewsSection({ focusHeading }: SectionProps) {
 // focus with them, and takes no other.
 function SavedViewRow({
   view,
+  notifies,
   rowId,
   refresh,
+  refreshNotifying,
   onRenamed,
   onRemoved,
 }: {
   view: SavedView;
+  notifies: boolean | undefined;
   // The id of its line, which focus can be put on; its Rename is the id with
   // -rename after it.
   rowId: string;
   refresh: () => void;
+  refreshNotifying: () => void;
   // Moves focus on once it is renamed, to its Rename.
   onRenamed: () => void;
   // Moves focus on once it is removed, its own controls gone with it.
@@ -88,6 +165,7 @@ function SavedViewRow({
       onRemoved();
     }
     refresh();
+    refreshNotifying();
   };
   return (
     <li>
@@ -100,6 +178,7 @@ function SavedViewRow({
         <div className="organized-line">
           <Link to={listHref(view.view)}>{view.name}</Link>
         </div>
+        <NotifySwitch view={view} notifies={notifies} refresh={refreshNotifying} />
         {renaming ? (
           <NameForm
             kind="view"
@@ -126,7 +205,7 @@ function SavedViewRow({
             <ConfirmButton
               label="Remove"
               confirmLabel="Remove this view"
-              question={`Remove the saved view ${view.name}? Every list and thread stays as it is.`}
+              question={removeQuestion(view, notifies)}
               disabled={action.pending}
               onConfirm={() => void remove()}
             />

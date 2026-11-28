@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./json-schemas": "./src/json-schemas.ts",
+    "./name-pattern": "./src/name-pattern.ts",
     "./registration-code": "./src/registration-code.ts"
   },
   "scripts": {

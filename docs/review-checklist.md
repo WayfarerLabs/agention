@@ -15,8 +15,8 @@ Agention is a standalone, self-hosted attention inbox on an honor system. It enf
 honor system cannot provide (identity and provenance, isolation, append-only attributed history,
 role checks, inert content) and makes everything else easy and visible (`SECURITY.md` "Security
 model"; ADR 0001 "Trust model: enforce provenance, not behavior"). Hold changes to both halves:
-enforcement must not be missing where the trust model requires it (A2 to A9, A17, A18, A20), and
-must not be built where the trust model says it does not belong (A6).
+enforcement must not be missing where the trust model requires it (A2 to A9, A17, A18, A20, A21),
+and must not be built where the trust model says it does not belong (A6).
 
 ## A1. Standalone and runtime-neutral
 
@@ -72,11 +72,13 @@ characters, and it goes only to the base URL it was entered for (`SECURITY.md` "
 is stored only as its hash, never logged or answered after its creation; creating and revoking one
 needs a recent sign-in; its revocation and expiry are checked inside each operation's transaction,
 and again on every chunk of a file it uploads or reads, and end the waits it holds; and every
-refusal of a key is the same (`SECURITY.md` "API keys"). Look for identity-header bypasses, an
-insecure TLS fallback, a first-user-wins bootstrap instead of the one-time `passkey-link`, recovery
-paths that skip ceremony checks, a credential's end that leaves a wait it holds running to its
-bound, and a bridge that sends tokens or message text anywhere but its configured HTTPS origin, a
-followed redirect included (`SECURITY.md` "The agent bridge").
+refusal of a key is the same (`SECURITY.md` "API keys"). Turning a device's notifications on, and
+removing another device from the list, need a recent sign-in; turning this device off needs none
+(`SECURITY.md` "Notifications"). Look for identity-header bypasses, an insecure TLS fallback, a
+first-user-wins bootstrap instead of the one-time `passkey-link`, recovery paths that skip ceremony
+checks, a credential's end that leaves a wait it holds running to its bound, and a bridge that sends
+tokens or message text anywhere but its configured HTTPS origin, a followed redirect included
+(`SECURITY.md` "The agent bridge").
 
 ## A5. Roles follow the direction of attention
 
@@ -102,10 +104,13 @@ signals, such as overdue, quiet and stranded, inform and never trigger actions o
 accuracy of impact, priority, effort, progress, and session state is the honor system's, not
 something to police with enforcement ladders. The server infers one thing a session did not report:
 its own write to a thread while idle, reporting no status, makes it working, logged as inferred, and
-a stopped session stays stopped (ADR 0001 "Sessions report what they are doing"). Look for timers or
-jobs that change threads or a session's status, inferred goals, progress or any other state,
-automatic withdrawals, archives, or escalations, and validation that second-guesses what the agent
-reports.
+a stopped session stays stopped (ADR 0001 "Sessions report what they are doing"). Notifications
+inform the operator and never act on an agent's work: a saved view that notifies may match on open
+asks, a derived signal, because a notification only tells the operator, and only an agent's message
+sets one off, never time passing (ADR 0008). Look for timers or jobs that change threads or a
+session's status, inferred goals, progress or any other state, automatic withdrawals, archives, or
+escalations, a notification that changes a thread or a session or is sent on a timer, and validation
+that second-guesses what the agent reports.
 
 ## A7. Stale writes, request ids, and read cursors
 
@@ -303,28 +308,32 @@ transaction, answering a key without it `not_found` on the field and applying no
 `apps/server/src/http/groups-and-tags.test.ts` holds. Files are their threads': uploading and
 removing a pending upload need `threads:write`, and a thread's files and reading one `threads:read`.
 Saved views have scopes of their own, `saved-views:read` and `saved-views:write`, so no thread or
-session scope grants them. One crossing is intended: renaming a tag, under `sessions:write`, also
+session scope grants them. Two crossings are intended: renaming a tag, under `sessions:write`, also
 rewrites the saved views naming it inside its transaction, so they keep their meaning, as
-`apps/server/src/http/saved-views.test.ts` holds; it grants no other reach into saved views. The
-mount refuses a missing scope before reading input, and the store operation confirms the same scope
-inside its transaction, which a test over every operation in the same file holds; a file's chunk
-reads and writes are store calls too, and confirm it as every other does. Each chunk also re-checks
-the credential, in its own transaction, so a transfer stops within one chunk once its credential is
-revoked or expires (one check for both), which the store's `apps/server/src/store/files.test.ts`
-("stops within a chunk once its credential is revoked") and the HTTP tests in
-`apps/server/src/http/files.test.ts` (the same, for a read) and
-`apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A later resource
-adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and never changes what
-an existing scope grants (`SECURITY.md` "API keys"). What each scope grants is written once, in
-`scopeGrants` in `packages/api/src/scopes.ts`, which the API key form and the API reference's API
-key scheme take it from; where `SECURITY.md`, `docs/operator-guide.md`, and `docs/architecture.md`
-say what each scope grants, they say it again for their readers, and change with it. Look for an
-operator route added outside the list, an operation with a scope wider or narrower than what it
-does, a write across resources beyond the tag rename's, a read-scoped operation that writes or takes
-a body, a store operation or a file's chunk read or write that leaves its scope to the mount, an
-operation whose body or answer is bytes but not declared so, a key-reachable route that manages
-credentials or Settings, a scope whose meaning changes, and a grant written outside `scopeGrants` or
-a doc's account of the scopes that disagrees with it.
+`apps/server/src/http/saved-views.test.ts` holds; and replacing or removing a view that notifies,
+under `saved-views:write`, changes what notifies, ending its notifying when the new list has a
+filter on that a notifying view refuses or the view goes, as
+`apps/server/src/http/notifications.test.ts` holds (ADR 0008). Neither grants any other reach: a key
+can neither see nor set which views notify, nor reach a device. The mount refuses a missing scope
+before reading input, and the store operation confirms the same scope inside its transaction, which
+a test over every operation in the same file holds; a file's chunk reads and writes are store calls
+too, and confirm it as every other does. Each chunk also re-checks the credential, in its own
+transaction, so a transfer stops within one chunk once its credential is revoked or expires (one
+check for both), which the store's `apps/server/src/store/files.test.ts` ("stops within a chunk once
+its credential is revoked") and the HTTP tests in `apps/server/src/http/files.test.ts` (the same,
+for a read) and `apps/server/src/http/operator-files.test.ts` (an API key's upload and read) hold. A
+later resource adds scopes of the form `<resource>:<access>` to `packages/api/src/scopes.ts` and
+never changes what an existing scope grants (`SECURITY.md` "API keys"). What each scope grants is
+written once, in `scopeGrants` in `packages/api/src/scopes.ts`, which the API key form and the API
+reference's API key scheme take it from; where `SECURITY.md`, `docs/operator-guide.md`, and
+`docs/architecture.md` say what each scope grants, they say it again for their readers, and change
+with it. Look for an operator route added outside the list, an operation with a scope wider or
+narrower than what it does, a write across resources beyond the tag rename's and a notifying view's
+replace and removal, a saved views read that shows whether a view notifies, a read-scoped operation
+that writes or takes a body, a store operation or a file's chunk read or write that leaves its scope
+to the mount, an operation whose body or answer is bytes but not declared so, a key-reachable route
+that manages credentials or Settings, a scope whose meaning changes, and a grant written outside
+`scopeGrants` or a doc's account of the scopes that disagrees with it.
 
 ## A19. The operator API contract and its document
 
@@ -341,12 +350,15 @@ committed document differs from the code's (`CONTRIBUTING.md` "Generated API doc
 `docs/architecture.md` "API documentation"). A saved view stores the list's view schema
 (`threadsView`) whole and reads it back strictly, so a change to that schema that would refuse a
 stored view, or change what one keeps, ships with a migration rewriting the stored views
-(`docs/architecture.md` "Saved views"). Look for a contract change whose document was not
-regenerated, a change to the list's view schema without that migration, a regenerated document whose
-diff removes or narrows anything a served version or the agent API (A12) carries, a document that
-describes more than the server checks (it may describe less: a rule enforced only in code answers
-`invalid_input`, naming the field when the rule concerns one), and documentation served with
-anything beyond the contract or without `--api-docs`.
+(`docs/architecture.md` "Saved views"). Such a migration also turns notifying off for a view its
+rewrite gives a filter on that a notifying view refuses (`refusedFiltersOn` in `packages/api`),
+since only turning notifying on and a replace keep that none has one (ADR 0008). Look for a contract
+change whose document was not regenerated, a change to the list's view schema without that
+migration, a migration rewriting stored views that leaves a notifying view with a refused filter on,
+a regenerated document whose diff removes or narrows anything a served version or the agent API
+(A12) carries, a document that describes more than the server checks (it may describe less: a rule
+enforced only in code answers `invalid_input`, naming the field when the rule concerns one), and
+documentation served with anything beyond the contract or without `--api-docs`.
 
 ## A20. The audit log
 
@@ -358,15 +370,38 @@ spent its rate budget, and coalesced per kind and minute (`docs/architecture.md`
 typed ids, numbers, flags and the names the operator and agents chose, read from rows the store
 holds, with no field for a request body, message or answer text, a title, a file name or a secret.
 What clients chose reaches an event only as bounded, grammar-checked names and media types, and the
-user agent, cut to 256 units, is the only free-form client text; a failure names its route's
-pattern, never the path the client sent. A new write joins the coverage test,
-`apps/server/src/audit/coverage.test.ts`, which fails on a `POST` declaration or a web route without
-a driver, and its event validates against the pinned OCSF schemas; an action that records nothing
-joins its one list of read marks only by a maintainer's decision. The log stays append-only: its
-triggers allow only an open failure's count to change and only the oldest event, once every sink's
-cursor has passed it, to be removed. Sinks are configured only by `serve` options, none of which
-takes a secret, and no API key, agent or browser can change one; a sink's stderr lines name it by
-its kind, never its destination. Reads record nothing, the log's own included (A18). Look for a
-write without its `recordAudit`, an event recorded outside its change's transaction, an input field
-that could carry text a client chose or a secret, a failure recorded before its budget is spent or
-twice, a sink that can block a write, and a delivery that can skip or reorder events.
+free-form client text is only the user agent, cut to 256 units, and a notification device's label,
+one line of at most 60 characters; a failure names its route's pattern, never the path the client
+sent. A new write joins the coverage test, `apps/server/src/audit/coverage.test.ts`, which fails on
+a `POST` declaration or a web route without a driver, and its event validates against the pinned
+OCSF schemas; an action that records nothing joins its one list of read marks only by a maintainer's
+decision. The log stays append-only: its triggers allow only an open failure's count to change and
+only the oldest event, once every sink's cursor has passed it, to be removed. Sinks are configured
+only by `serve` options, none of which takes a secret, and no API key, agent or browser can change
+one; a sink's stderr lines name it by its kind, never its destination. Reads record nothing, the
+log's own included (A18). Look for a write without its `recordAudit`, an event recorded outside its
+change's transaction, an input field that could carry text a client chose or a secret, a failure
+recorded before its budget is spent or twice, a sink that can block a write, and a delivery that can
+skip or reorder events.
+
+## A21. Web Push to the operator
+
+The server notifies the operator's devices through Web Push to the web UI, and nothing else (ADR
+0008; `SECURITY.md` "Notifications"; `docs/architecture.md` "Notifications"). It sends only to the
+known push services' hosts, matched at a dot boundary and never resolved by our code, over HTTPS on
+the default port, following no redirect, within a timeout, checking the endpoint when a device
+registers and again before each send (`apps/server/src/push/endpoint.ts`). Every payload is padded
+to one size, no `Topic` header is sent, the token's subject is the project's URL, and nothing a push
+service sees in clear names a thread or links one notification to another. A payload holds a
+thread's agent, session, number, title, and why it needs the operator, never a message's text, and
+what notifies is a saved view's filters with search, overdue, and the agent's reading refused, so
+nothing notifies on what messages say or on time passing. The push key and the subscriptions are
+secrets the server holds: never logged, never answered but the public key, and a log line names a
+device by its id and its push service's host, never its endpoint's path. The service worker has no
+fetch handler and caches nothing, builds a thread's route from the payload's identifiers, never a
+URL, and posts the thread to open only to a window on a route of the web UI. Only the web mount
+manages devices and which views notify. Look for a send to a host outside the list or one resolved
+first, a redirect followed, a payload whose size follows its content, a field of message text or a
+per-thread value in clear, a key or an endpoint's path in a log line or an answer, a rule matching
+on message text or set off by a timer, a notification route on the operator or agent mount, and a
+worker that navigates to or fetches a URL from a payload.

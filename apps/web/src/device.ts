@@ -323,3 +323,75 @@ export function forgetDrafts(): void {
   }
   keep(signOutKey, crypto.randomUUID());
 }
+
+// Whether this device receives notifications, as the operator left it here:
+// on, which the web UI refreshes with the server as it starts; stopped, with
+// why, once a refresh found them ended, which Settings say until the operator
+// turns them on again; or off, with nothing kept. Only on is the operator's
+// intent: a stopped device is never subscribed again without a tap.
+export type StopReason = "dropped" | "removed";
+export type DeviceNotifications =
+  { state: "on" } | { state: "off" } | { state: "stopped"; why: StopReason };
+
+const notificationsKey = "agention.notifications";
+const notificationsListeners = new Set<() => void>();
+// What the page holds of it, read from storage once, so it holds while the
+// page is open where the browser refuses storage.
+let notificationsHeld: { value: string | undefined } | undefined;
+
+const heldNotifications = (): string | undefined => {
+  notificationsHeld ??= { value: read(notificationsKey) };
+  return notificationsHeld.value;
+};
+
+function parseNotifications(value: string | undefined): DeviceNotifications {
+  switch (value) {
+    case "on":
+      return { state: "on" };
+    case "stopped:dropped":
+      return { state: "stopped", why: "dropped" };
+    case "stopped:removed":
+      return { state: "stopped", why: "removed" };
+    default:
+      return { state: "off" };
+  }
+}
+
+// readDeviceNotifications reads what this device keeps of its notifications.
+export const readDeviceNotifications = (): DeviceNotifications =>
+  parseNotifications(heldNotifications());
+
+// keepDeviceNotifications keeps it, forgetting it for off, and tells every
+// part of the page that shows it.
+export function keepDeviceNotifications(next: DeviceNotifications): void {
+  const value =
+    next.state === "off" ? undefined : next.state === "on" ? "on" : `stopped:${next.why}`;
+  notificationsHeld = { value };
+  if (value === undefined) {
+    forget(notificationsKey);
+  } else {
+    keep(notificationsKey, value);
+  }
+  for (const listener of [...notificationsListeners]) {
+    listener();
+  }
+}
+
+const subscribeNotifications = (listener: () => void) => {
+  notificationsListeners.add(listener);
+  return () => {
+    notificationsListeners.delete(listener);
+  };
+};
+
+// useDeviceNotifications gives what this device keeps of its notifications,
+// following each change the page makes.
+export function useDeviceNotifications(): DeviceNotifications {
+  return parseNotifications(useSyncExternalStore(subscribeNotifications, heldNotifications));
+}
+
+// forgetHeldNotifications has the page read the device's notifications from
+// storage afresh, for tests that set storage themselves.
+export function forgetHeldNotifications(): void {
+  notificationsHeld = undefined;
+}

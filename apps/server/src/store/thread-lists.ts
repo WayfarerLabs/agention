@@ -547,15 +547,36 @@ function reachOf(store: Store, identity: Identity, now: number): Reach {
   };
 }
 
-// totalOf counts the threads a query's list holds, across every session the
-// viewer reaches.
-function totalOf(reach: Reach, query: ThreadFilters): number {
+// totalOf counts the threads a query's list holds, of those scope admits: by
+// default every session the viewer reaches.
+function totalOf(reach: Reach, query: ThreadFilters, scope = reached): number {
   const { total } = listStatement(
     reach.db,
-    `${threadsSeen(reached, leadOf(query, defaultSort))}
+    `${threadsSeen(scope, leadOf(query, defaultSort))}
      SELECT count(*) AS total FROM seen th WHERE ${where(query)}`,
   ).get({ ...reach.scope, ...parametersOf(query, reach.viewing, reach.now) }) as { total: number };
   return total;
+}
+
+// threadKept says whether the operator's list, under these filters, keeps
+// the thread, as the viewer sees it now: the list's own total, scoped to the
+// one thread, so no filter is written twice. The filters may be a whole view,
+// whose order and grouping play no part, since the list keeps a thread by
+// its filters alone. The caller runs it in its transaction.
+export function threadKept(
+  store: Store,
+  threadId: number,
+  viewer: number,
+  filters: ThreadFilters,
+  now: number,
+): boolean {
+  const reach = {
+    db: store.db,
+    viewing: viewerAndCutoff(store, viewer, now),
+    now,
+    scope: { thread: threadId },
+  };
+  return totalOf(reach, filters, "t.id = :thread") > 0;
 }
 
 // The list's position among every message: the latest message's position

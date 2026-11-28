@@ -33,7 +33,7 @@ section prices.
 | `apps/web/src/push/` (new)                     | the device intent, subscribe and refresh, and the page's message listener |
 | `apps/web/src/views/settings/SavedViews.tsx`   | each row's Notify switch; Remove's question                               |
 | `apps/web/src/views/list/SavedViews.tsx`       | Replace's question                                                        |
-| `apps/web/src/service-worker.ts` (new)         | `push` and `notificationclick`                                            |
+| `apps/web/src/service-worker/` (new)           | `push` and `notificationclick`, with its own TypeScript project           |
 | `apps/web/src/routes.ts` (new)                 | the route table, moved from `router.tsx`, its callers importing it here   |
 
 The check lives in the store because it is a read of the store's own tables in a transaction; the
@@ -79,7 +79,7 @@ LIMIT 1;
 -- The devices the operator turned notifications on for: each browser push
 -- subscription, by the endpoint its push service issued, with the keys that
 -- encrypt to it, which are secrets the server holds. A subscription goes with
--- the passkey that signed its device in. session_hash is the SHA-256 of the
+-- the passkey that signed its device in. session_id is the id of the
 -- browser session that registered or last refreshed it, with no foreign key,
 -- so the session expiring leaves it; signing that session out removes it.
 -- One browser session holds at most one. label is what the device reported
@@ -91,7 +91,8 @@ CREATE TABLE push_subscriptions (
   p256dh BLOB NOT NULL CHECK (length(p256dh) = 65),
   auth BLOB NOT NULL CHECK (length(auth) = 16),
   passkey_id INTEGER NOT NULL REFERENCES passkeys (id) ON DELETE CASCADE,
-  session_hash BLOB NOT NULL UNIQUE CHECK (length(session_hash) = 32),
+  session_id TEXT NOT NULL UNIQUE
+    CHECK (length(session_id) = 32 AND session_id NOT GLOB '*[^0-9a-f]*'),
   label TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   accepted_at INTEGER
@@ -136,9 +137,9 @@ Notes on the constraints:
 - At most 199 views exist when the view is inserted, so at most 199 names are taken and one of the
   first 200 is free. `x COLLATE NOCASE NOT IN (...)` compares as the `name` column's `UNIQUE` does,
   so a view named "blocking ASKS" makes the starting view "Blocking asks 2".
-- `session_hash` is `UNIQUE`: a browser session is one browser, so it holds at most one
-  subscription, and Settings mark "this device" as the one the browser session holds, so no endpoint
-  travels in a URL.
+- `session_id` is `UNIQUE`: a browser session is one browser, so it holds at most one subscription,
+  and Settings mark "this device" as the one the browser session holds, so no endpoint travels in a
+  URL.
 - `thread_marks` is `STRICT, WITHOUT ROWID` (`migrations.ts:323-329`); SQLite allows `ADD COLUMN`
   with a `CHECK` on both. Its comment there is in migration 1, which has shipped, so the new
   column's comment lives in this one.
@@ -506,9 +507,9 @@ const pushDomains = [".push.apple.com", ".notify.windows.com"];
 export const maxEndpointLength = 2048;
 
 // endpointProblem says why the server will not send to an endpoint, or
-// nothing when it will: an absolute https: URL, at most 2048 characters, on
-// the default port, with no user information, whose host is a known push
-// service's.
+// nothing when it will: an absolute https: URL, at most 2048 characters as
+// given and in the canonical form the server stores, on the default port,
+// with no user information, whose host is a known push service's.
 export function endpointProblem(endpoint: string): string | undefined {
   if (endpoint.length > maxEndpointLength) {
     return `must be at most ${maxEndpointLength} characters`;
@@ -518,6 +519,9 @@ export function endpointProblem(endpoint: string): string | undefined {
     url = new URL(endpoint);
   } catch {
     return "must be an absolute https: URL";
+  }
+  if (url.href.length > maxEndpointLength) {
+    return `must be at most ${maxEndpointLength} characters`;
   }
   if (url.protocol !== "https:") {
     return "must be an https: URL";
@@ -536,6 +540,9 @@ export function endpointProblem(endpoint: string): string | undefined {
 
 - The WHATWG parser lowercases the host and writes `:443` as no port for `https:`, so `port !== ""`
   refuses every other port.
+- The server stores an endpoint in that parser's canonical form, `new URL(endpoint).href`, and On
+  and Refresh look a subscription up by it, so one subscription is never stored twice under two
+  spellings.
 - A trailing dot (`fcm.googleapis.com.`) and a look-alike (`fcm.googleapis.com.evil.test`,
   `evilpush.apple.com`) match neither list. An IP literal matches neither.
 - Its test is a table of endpoints, each accepted or refused: one real-shaped endpoint per service,
@@ -578,14 +585,15 @@ minute later. Before each try, `stillWanted(store, { subscription, threadId, seq
 
 ```sql
 SELECT 1 FROM push_subscriptions
-WHERE id = :id AND endpoint = :endpoint AND p256dh = :p256dh AND auth = :auth;
+WHERE id = :id AND p256dh = :p256dh AND auth = :auth;
 SELECT 1 FROM thread_marks
 WHERE actor_id = :operator AND thread_id = :thread AND notified_seq = :seq;
 ```
 
 - The first finds no row when the device was removed, signed out, or lost its passkey meanwhile, so
   nothing reaches a device whose notifications have ended (FRD D3); or when **On** or **Refresh**
-  gave the row other keys or another endpoint, which the browser now holds instead.
+  gave the row other keys, which the browser now holds instead. A row's endpoint never changes: a
+  new endpoint is a new row, with a new id.
 - The second finds no row when the operator read or archived the thread through this message, or a
   later message notified: a late try would alert for what was read, or replace the newer
   notification of the same `tag` with this older one.
@@ -653,15 +661,15 @@ All in `store/notifications.ts`, each a transaction that starts with
 confirms the browser session and gives its passkey and whether the sign-in is recent.
 
 - **On**: needs a recent sign-in (`requireRecentSignIn`, `browser-sessions.ts:168-175`). With the
-  endpoint already stored, it updates that row's keys, label, passkey and session hash. Otherwise it
-  replaces the row this browser session already holds, if any, with the new endpoint and keys, or
-  inserts a row while fewer than 10 are stored.
+  endpoint already stored, it updates that row's keys, label, passkey and session id, as Refresh
+  does. Otherwise it replaces the row this browser session already holds, if any, with the new
+  endpoint and keys, or inserts a row while fewer than 10 are stored.
 - **Refresh**: needs no recent sign-in, and only updates a row whose endpoint the server stores: its
-  keys, label, passkey and session hash. That is how a second sign-in on the same browser moves the
+  keys, label, passkey and session id. That is how a second sign-in on the same browser moves the
   subscription to its new session. An endpoint the server does not store is `not_found`, and the web
   UI stops this device's notifications, as below.
 - **Moving a row to a session that holds another**: both On and Refresh, when they give a row the
-  current session's hash while another row holds it, delete that other row first, in the same
+  current session's id while another row holds it, delete that other row first, in the same
   transaction, so `UNIQUE` never fails. The other row was this browser's older subscription.
 - **Orphans**: a row whose browser no longer holds its subscription ends when its push service
   answers 404 or 410 to a send, when **On** from the session that holds it replaces it, or when the
@@ -669,7 +677,7 @@ confirms the browser session and gives its passkey and whether the sign-in is re
 - **Remove**: deletes a row by id. Removing this browser session's own row is turning this device
   off, and needs no recent sign-in; removing any other device's needs one, as revoking an API key
   does (FRD D3).
-- **Sign-out**: `signOut` (`browser-sessions.ts:81-86`) deletes the row whose `session_hash` is the
+- **Sign-out**: `signOut` (`browser-sessions.ts:81-86`) deletes the row whose `session_id` is the
   closing session's, in the same transaction. Not `closeBrowserSession`
   (`browser-sessions.ts:67-77`), which a new sign-in on the same browser also calls
   (`apps/server/src/auth/passkeys.ts:202`): that one must leave the row for the next refresh to
@@ -779,19 +787,27 @@ field `id` only when no saved view has that id.
 
 ### The service worker
 
-- **Source and build.** `apps/web/src/service-worker.ts`, built as one classic script in its own
-  pass after the Vite build, as the diagram frame's is (`apps/web/build-frame.ts:1-26`), with
-  `bundleScript` (`packages/build/src/bundle.ts:67-113`). That names its output
-  `assets/<name>-<hash>` (`:76`), so it gains an option for a fixed name at the build's root.
+- **Source and build.** `apps/web/src/service-worker/service-worker.ts`, under a TypeScript project
+  of its own for the worker's library (`apps/web/src/service-worker/tsconfig.json`), built as one
+  classic script in its own pass after the Vite build, as the diagram frame's is
+  (`apps/web/build-frame.ts:1-26`), with `bundleScript` (`packages/build/src/bundle.ts:67-113`).
+  That names its output `assets/<name>-<hash>` (`:76`), so it gains an option for a fixed name at
+  the build's root.
 - **Served at `/service-worker.js`.** The server serves the web build's files at `/`
-  (`apps/server/src/http/web-ui.ts:80`), so the worker's default scope is `/`, the whole web UI, and
-  no `Service-Worker-Allowed` header is needed. A fixed name keeps one registration across releases;
-  every response already carries `Cache-Control: no-store` (`apps/server/src/http/app.ts:51-59`), so
-  an update reaches browsers on their next check.
-- **License notices.** The worker bundles `zod` and `@wayfarerlabs/agention-api` for the payload's
-  schema, so its pass writes the packages it includes to `dist/.vite/service-worker-notices.json`,
-  as the frame's pass writes its own (`build-frame.ts:25-26`), and the server package ships them
-  with the web UI's.
+  (`apps/server/src/http/web-ui.ts:80`), the worker's by the same route as every file outside
+  `assets/`, so the worker's default scope is `/`, the whole web UI, and no `Service-Worker-Allowed`
+  header is needed. A fixed name keeps one registration across releases; every response already
+  carries `Cache-Control: no-store` (`apps/server/src/http/app.ts:51-59`), so an update reaches
+  browsers on their next check.
+- **No schema library.** Browsers fetch the worker's script whole at each start of the web UI, and
+  nothing caches it, so it bundles no npm package: it checks the payload by hand, its thread by
+  whether `matchRoute(threadHref(...))` names a thread route, its `why` by the words it has for it,
+  and its title by its type. The route table needs the name grammar, which lives in a module of
+  `@wayfarerlabs/agention-api` that imports nothing, on its own entry point
+  (`@wayfarerlabs/agention-api/name-pattern`), so the worker is a few kilobytes.
+- **License notices.** The worker's pass writes the packages it includes, none today, to
+  `dist/.vite/service-worker-notices.json`, as the frame's pass writes its own
+  (`build-frame.ts:25-26`), and the server package ships them with the web UI's.
 - **Registered** by the web UI at every start, from `main.tsx`, with
   `navigator.serviceWorker.register("/service-worker.js", { scope: "/" })` where the browser has
   `serviceWorker` and `PushManager`, so the registration exists for **On** and for refresh, and a
@@ -807,12 +823,12 @@ self.addEventListener("push", (event) => {
 });
 
 async function show(data: PushMessageData | null): Promise<void> {
-  const read = pushPayload.safeParse(parsed(data));
-  if (!read.success) {
+  const payload = payloadOf(data);
+  if (payload === undefined) {
     // A push must always show something, or browsers revoke the permission.
     return self.registration.showNotification("Agention", { body: "Something needs you" });
   }
-  const { agent, session, thread, title, why } = read.data;
+  const { agent, session, thread, title, why } = payload;
   return self.registration.showNotification(title, {
     body: whyWords[why],
     tag: `${agent}/${session}/${thread}`,
@@ -828,29 +844,28 @@ async function show(data: PushMessageData | null): Promise<void> {
 - `tag` is the thread, so a later notification for it replaces the earlier where the browser honors
   tags (FRD N1); `renotify` makes the replacement alert, which is right because a thread notifies
   again only after it was read.
-- `parsed` is `JSON.parse` of `data.text()` in a `try`; anything that fails is the generic
-  notification.
+- `payloadOf` is `JSON.parse` of `data.text()` in a `try`, then the hand checks above; anything that
+  fails is the generic notification.
 
 ### Opening the thread
 
 ```ts
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(open(openTarget.safeParse(event.notification.data)));
+  event.waitUntil(open(threadOf(event.notification.data)));
 });
 
-async function open(target: ReturnType<typeof openTarget.safeParse>): Promise<void> {
-  const path = target.success
-    ? threadHref(target.data.agent, target.data.session, target.data.thread)
-    : "/";
+async function open(target: PushThread | undefined): Promise<void> {
+  const path = target === undefined ? "/" : threadHref(target.agent, target.session, target.thread);
   const windows = (
     await self.clients.matchAll({ type: "window", includeUncontrolled: true })
   ).filter(showsWebUi);
   const client = windows.find((each) => each.focused) ?? windows[0];
   if (client !== undefined) {
     await client.focus();
-    if (target.success) {
-      client.postMessage({ type: "open-thread", ...target.data });
+    if (target !== undefined) {
+      const message: OpenThreadMessage = { type: "open-thread", ...target };
+      client.postMessage(message);
     }
     return;
   }
@@ -864,7 +879,8 @@ function showsWebUi(client: WindowClient): boolean {
 }
 ```
 
-- `openTarget` is the payload's `agent`, `session`, and `thread` with their schemas. `threadHref`
+- `threadOf` reads the notification's `agent`, `session`, and `thread` by the same hand checks as
+  the payload's. The message is typed `OpenThreadMessage`, the page's schema's type. `threadHref`
   (`apps/web/src/router.tsx:325-327`) builds the route from the identifiers alone, never from a URL
   in the payload, and the result is always on the worker's own origin.
 - **Only a web UI window is chosen.** `matchAll` with `includeUncontrolled` returns every window
@@ -932,25 +948,30 @@ navigator.serviceWorker?.startMessages();
 
 ### Device intent, subscribe and refresh
 
-- The intent is a device choice beside the others (`useDeviceChoice`,
-  `apps/web/src/device.ts:72-84`), under `agention.notifications`.
+- The device keeps one of three states beside its other choices (`apps/web/src/device.ts`), under
+  `agention.notifications`: on, the operator's intent, which the web UI refreshes; stopped, with
+  why, once a refresh found them ended, which Settings say until the operator turns them on again;
+  or off, with nothing kept. Only on is the intent: a stopped device is never subscribed again
+  without a tap.
 - **On** (from Settings' switch, a tap, with a recent sign-in): `Notification.requestPermission()`;
   if the browser holds a subscription whose `options.applicationServerKey` is not the server's
   public key, `unsubscribe()` it first, since a browser refuses a second subscription under another
   key; then `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`
   with the public key from `GET /notifications`, and `POST /notifications/devices` with
   `subscription.toJSON()`'s endpoint and keys and a label made from the browser and platform. The
-  intent is kept only once the server accepted it.
-- **Refresh** runs while the intent is set, on start and after an in-app sign-in:
-  `getSubscription()`, then `POST /notifications/devices/refresh` with it. It never subscribes.
+  state is kept on only once the server accepted it.
+- **Refresh** runs while the state is on, on start and after an in-app sign-in: `getSubscription()`,
+  then `POST /notifications/devices/refresh` with it. It never subscribes.
 - **Stopped**: when refresh finds no subscription in the browser, one under another key, or one the
   server answers `not_found` for, the device's notifications have stopped: the browser dropped them,
   or another device removed this one, or a push service ended it. The web UI then unsubscribes in
-  the browser, clears the intent, and Settings show this device's state as "Stopped", with which of
-  those it was, beside "On", "Off" and "Blocked by the browser". Turning it on again is **On**, with
-  a recent sign-in, as the first time was (FRD D3).
+  the browser, keeps the state stopped, with why, and Settings show this device's state as
+  "Stopped", with which of those it was, beside "On", "Off" and "Blocked by the browser". Turning it
+  on again is **On**, with a recent sign-in, as the first time was (FRD D3).
 - **Off** and **sign-out**: `unsubscribe()` in the browser, the remove route for this device's own
-  row (Off) or the sign-out route, which removes it, and the intent cleared.
+  row (Off) or the sign-out route, which removes it, and the state off. With no device the server
+  lists as this one, as after a new sign-in on this browser before the refresh moved its
+  subscription to it, Off refreshes first, which moves the row to this session, and then removes it.
 
 ### Settings and the saved views sheet
 

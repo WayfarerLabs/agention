@@ -1,6 +1,7 @@
 // What every component test starts from.
 import { configure } from "@testing-library/react";
 import { beforeEach } from "vitest";
+import { forgetHeldNotifications } from "./device.ts";
 
 // Under machine load a component can take longer than Testing Library's
 // default second to show what a test finds; a find still returns the moment
@@ -20,4 +21,5 @@ window.matchMedia = (query: string) =>
 // Each test starts with nothing kept in the browser's storage.
 beforeEach(() => {
   window.localStorage.clear();
+  forgetHeldNotifications();
 });

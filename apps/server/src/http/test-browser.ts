@@ -8,6 +8,7 @@ import path from "node:path";
 import { expect } from "vitest";
 import { type Answer, TestAuthenticator } from "../auth/test-authenticator.ts";
 import { openTestDatabase } from "../database/test-database.ts";
+import { settlePushKey } from "../push/vapid.ts";
 import { createStore, type Store, storeName } from "../store/index.ts";
 import { start } from "../store/test-fixture.ts";
 import { createApp } from "./app.ts";
@@ -25,7 +26,14 @@ export class TestServer {
     this.origin = origin;
     this.store = createStore(this.db, { clock: () => this.now });
     storeName(this.db, name);
-    this.app = createApp({ store: this.store, origin, name, webRoot: undefined, rates });
+    this.app = createApp({
+      store: this.store,
+      origin,
+      name,
+      webRoot: undefined,
+      rates,
+      pushPublicKey: settlePushKey(this.db).publicKey,
+    });
   }
 
   close(): void {

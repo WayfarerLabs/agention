@@ -146,7 +146,8 @@ function archiveThrough(
 // messages that directly follow it, or, when an ask open to it sits at or
 // before through, archives nothing and returns those asks. Carried on,
 // archiving through the last message another party wrote archives the thread
-// though the identity replied since.
+// though the identity replied since. Archiving through the message that last
+// notified the operator clears its mark, as reading through it does.
 export function archiveFound(
   db: Database,
   identity: Identity,
@@ -168,7 +169,9 @@ export function archiveFound(
   db.prepare(
     `INSERT INTO thread_marks (actor_id, thread_id, archived_seq) VALUES (?, ?, ?)
      ON CONFLICT (actor_id, thread_id) DO UPDATE
-       SET archived_seq = max(archived_seq, excluded.archived_seq)`,
+       SET archived_seq = max(archived_seq, excluded.archived_seq),
+         notified_seq =
+           IIF(notified_seq <= max(archived_seq, excluded.archived_seq), NULL, notified_seq)`,
   ).run(identity.actor, thread.id, carried);
   return { marks: marksOf(db, identity.actor, thread.id) };
 }

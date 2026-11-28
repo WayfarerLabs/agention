@@ -25,7 +25,8 @@ import { AttachList } from "../../attach/AttachList.tsx";
 import { Failure, PathParts, Sheet } from "../../components.tsx";
 import { newRequestId, useAction, useStillOpen } from "../../data.ts";
 import { type Absence, AbsenceReason, absenceOf } from "../../format.tsx";
-import { navigate, threadHref } from "../../router.tsx";
+import { navigate } from "../../router.tsx";
+import { threadHref } from "../../routes.ts";
 import { useDictationInto, useVoiceOn } from "../../voice/Dictation.tsx";
 import { blank, draftProblems, failureAt } from "../thread/writer.ts";
 

@@ -13,6 +13,7 @@ import type { Hono } from "hono";
 import { SignJWT } from "jose";
 import { generateKeyPairSync, type KeyObject } from "node:crypto";
 import { openBrowserSession } from "../auth/browser-sessions.ts";
+import { type PushKey, settlePushKey } from "../push/vapid.ts";
 import { findOperator, type VoiceEnvironment } from "../store/index.ts";
 import type { TranscriptionProvider } from "../transcription/provider.ts";
 import { Fixture } from "../store/test-fixture.ts";
@@ -70,6 +71,8 @@ export class Harness {
   readonly app: Hono;
   readonly shutdown = new AbortController();
   readonly logged: string[] = [];
+  // The server's push key, settled as agention serve settles it.
+  readonly pushKey: PushKey;
   // The operator's browser: its session cookie and CSRF token.
   cookie: string;
   csrf: string;
@@ -86,6 +89,7 @@ export class Harness {
   ) {
     this.fixture = new Fixture({ name: options.name ?? "Agention" });
     try {
+      this.pushKey = settlePushKey(this.fixture.db);
       this.app = createApp({
         ...(options.apiDocs === undefined ? {} : { apiDocs: options.apiDocs }),
         ...(options.voiceEnvironment === undefined
@@ -99,6 +103,7 @@ export class Harness {
         ...(options.rates === undefined ? {} : { rates: options.rates }),
         shutdown: this.shutdown.signal,
         log: (message) => this.logged.push(message),
+        pushPublicKey: this.pushKey.publicKey,
       });
       const session = this.#openBrowserSession();
       this.cookie = session.token;
